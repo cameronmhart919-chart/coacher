@@ -102,9 +102,9 @@ export default function FootballCoach() {
   const [games, setGames] = useLocalStorage("coachlog_games", ["Game 1"]);
   const [players, setPlayers] = useLocalStorage("coachlog_players", initialPlayers);
   const [playCodes, setPlayCodes] = useLocalStorage("coachlog_playcodes", [
-    { id: 1, code: "Z32", description: "Outside run right" },
-    { id: 2, code: "Blue 44", description: "Power run left" },
-    { id: 3, code: "Slant 9", description: "Slant route pass" },
+    { id: 1, code: "Z32" },
+    { id: 2, code: "Blue 44" },
+    { id: 3, code: "Slant 9" },
   ]);
 
   const [positions, setPositions] = useLocalStorage("coachlog_positions", DEFAULT_POSITIONS);
@@ -134,7 +134,7 @@ export default function FootballCoach() {
   const [newGame, setNewGame] = useState("");
   const [editingGame, setEditingGame] = useState(null); // { index, value }
   const [newPlayer, setNewPlayer] = useState({ name: "", position: "", number: "" });
-  const [newCode, setNewCode] = useState({ code: "", description: "" });
+  const [newCode, setNewCode] = useState({ code: "" });
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [newPosition, setNewPosition] = useState("");
   const [editingPosition, setEditingPosition] = useState(null); // { index, value }
@@ -317,7 +317,7 @@ export default function FootballCoach() {
       const o = (p.outcome || "").trim();
       if (!byCode[p.playCode]) {
         const pc = playCodes.find(x => x.code === p.playCode);
-        byCode[p.playCode] = { code: p.playCode, description: pc?.description || "", ...emptyStats() };
+        byCode[p.playCode] = { code: p.playCode, ...emptyStats() };
       }
       const s = byCode[p.playCode];
       if (isPassPlay(p)) {
@@ -452,7 +452,7 @@ export default function FootballCoach() {
                   <label style={labelStyle}>Play Code</label>
                   <select style={inputStyle} value={form.playCode} onChange={e => f("playCode", e.target.value)}>
                     <option value="">— Select —</option>
-                    {playCodes.map(pc => <option key={pc.id} value={pc.code}>{pc.code} – {pc.description}</option>)}
+                    {playCodes.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
                   </select>
                 </div>
               </div>
@@ -636,7 +636,7 @@ export default function FootballCoach() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: THEME.buttonBg }}>
-                        {["Play Code","Description","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","Runs","Run+","Run-","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h, i) => (
+                        {["Play Code","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","Runs","Run+","Run-","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h, i) => (
                           <th key={h} style={{ padding: "9px 10px", textAlign: i < 2 ? "left" : "center", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -645,7 +645,6 @@ export default function FootballCoach() {
                       {Object.values(analytics.byCode).sort((a, b) => a.code.localeCompare(b.code)).map((s, i) => (
                         <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                           <td style={{ padding: "9px 10px", fontWeight: 800, color: THEME.primary, whiteSpace: "nowrap" }}>{s.code}</td>
-                          <td style={{ padding: "9px 10px", color: "#6b7280", fontSize: 11, whiteSpace: "nowrap" }}>{s.description}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{s.attempts || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{s.receptions || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 700 }}>{s.attempts > 0 ? `${Math.round(s.receptions / s.attempts * 100)}%` : "—"}</td>
@@ -1237,11 +1236,10 @@ export default function FootballCoach() {
               <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Play Codes</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
                 <input style={inputStyle} placeholder="Code (e.g. Z32)" value={newCode.code} onChange={e => setNewCode(c => ({ ...c, code: e.target.value }))} />
-                <input style={inputStyle} placeholder="Description" value={newCode.description} onChange={e => setNewCode(c => ({ ...c, description: e.target.value }))} />
                 <button onClick={() => {
                   if (newCode.code.trim()) {
                     setPlayCodes(c => [...c, { ...newCode, id: Date.now() }]);
-                    setNewCode({ code: "", description: "" });
+                    setNewCode({ code: "" });
                   }
                 }} style={{ padding: "9px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
                   Add Code
@@ -1252,7 +1250,6 @@ export default function FootballCoach() {
                   <div key={pc.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: THEME.primary }}>{pc.code}</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>{pc.description}</div>
                     </div>
                     <button onClick={() => setPlayCodes(c => c.filter(x => x.id !== pc.id))} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 16, padding: 0 }}>×</button>
                   </div>
