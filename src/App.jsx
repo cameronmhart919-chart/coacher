@@ -37,20 +37,25 @@ const THEME = {
 };
 
 const PLAY_TYPES = ["Run", "Pass", "Screen", "Sweep", "Draw", "Option", "QB Sneak", "Reverse"];
-const DEFAULT_OUTCOMES = ["Touchdown", "First Down", "Gain", "No Gain", "Loss", "Incomplete", "Interception", "Fumble", "Penalty", "Drop", "Throw Away", "Sack"];
-const DEFAULT_POSITIONS = ["QB", "RB", "WR1", "WR2", "WR3", "TE", "OL"];
+const DEFAULT_OUTCOMES = ["Reception - Gain", "Reception - Loss", "Incomplete", "Drop", "TD", "INT", "Run - Gain", "Run - Loss", "Throw Away", "Sack"];
+const DEFAULT_POSITIONS = ["QB", "WR"];
 
 const initialPlayers = [
-  { id: 1, name: "Player 1", position: "QB", number: "1" },
-  { id: 2, name: "Player 2", position: "RB", number: "2" },
-  { id: 3, name: "Player 3", position: "WR1", number: "3" },
-  { id: 4, name: "Player 4", position: "WR2", number: "4" },
-  { id: 5, name: "Player 5", position: "WR3", number: "5" },
+  { id: 1, name: "Reed", position: "QB" },
+  { id: 2, name: "Jones", position: "WR" },
+  { id: 3, name: "Hafoka", position: "WR" },
+  { id: 4, name: "Witt", position: "WR" },
+  { id: 5, name: "Davis", position: "WR" },
+  { id: 6, name: "Tyson", position: "WR" },
+  { id: 7, name: "Cohen", position: "WR" },
+  { id: 8, name: "Corbin", position: "WR" },
+  { id: 9, name: "Jack", position: "WR" },
+  { id: 10, name: "Tate", position: "WR" },
 ];
 
 const TABS = ["Log Play", "Analytics", "Game Summary", "Report Cards", "Manage"];
 
-const successOutcomes = new Set(["Touchdown", "First Down", "Gain"]);
+const successOutcomes = new Set(["TD", "Reception - Gain", "Run - Gain"]);
 
 function Badge({ color, children }) {
   const colors = {
@@ -99,17 +104,19 @@ function StatCard({ label, value, sub, accent }) {
 export default function FootballCoach() {
   const [tab, setTab] = useState("Log Play");
   const [plays, setPlays] = useLocalStorage("coachlog_plays", []);
-  const [games, setGames] = useLocalStorage("coachlog_games", ["Game 1"]);
+  const [games, setGames] = useLocalStorage("coachlog_games", ["Game 1", "Game 2", "Game 3", "Game 4", "Game 5", "Game 6", "Game 7", "Game 8"]);
   const [players, setPlayers] = useLocalStorage("coachlog_players", initialPlayers);
   const [playCodes, setPlayCodes] = useLocalStorage("coachlog_playcodes", [
-    { id: 1, code: "Z32" },
-    { id: 2, code: "Blue 44" },
-    { id: 3, code: "Slant 9" },
+    { id: 1, code: "D1" }, { id: 2, code: "D2" }, { id: 3, code: "D3" },
+    { id: 4, code: "D4" }, { id: 5, code: "D5" }, { id: 6, code: "T1" },
+    { id: 7, code: "T2" }, { id: 8, code: "T3" }, { id: 9, code: "T4" },
+    { id: 10, code: "T5" }, { id: 11, code: "M1" }, { id: 12, code: "M2" },
+    { id: 13, code: "M3" }, { id: 14, code: "M4" },
   ]);
 
   const [positions, setPositions] = useLocalStorage("coachlog_positions", DEFAULT_POSITIONS);
   const [outcomes, setOutcomes] = useLocalStorage("coachlog_outcomes", DEFAULT_OUTCOMES);
-  const [tdOutcome, setTdOutcome] = useLocalStorage("coachlog_tdoutcome", "Touchdown");
+  const [tdOutcome, setTdOutcome] = useLocalStorage("coachlog_tdoutcome", "TD");
   const [gameScores, setGameScores] = useLocalStorage("coachlog_gamescores", {}); // { gameName: { us, them, result } }
   const [coachNotes, setCoachNotes] = useLocalStorage("coachlog_coachnotes", {}); // { playerId: string }
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -133,7 +140,7 @@ export default function FootballCoach() {
   // Manage state
   const [newGame, setNewGame] = useState("");
   const [editingGame, setEditingGame] = useState(null); // { index, value }
-  const [newPlayer, setNewPlayer] = useState({ name: "", position: "", number: "" });
+  const [newPlayer, setNewPlayer] = useState({ name: "", position: "" });
   const [newCode, setNewCode] = useState({ code: "" });
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [newPosition, setNewPosition] = useState("");
@@ -479,21 +486,21 @@ export default function FootballCoach() {
                   <label style={labelStyle}>Ball Carrier</label>
                   <select style={inputStyle} value={form.carrier} onChange={e => f("carrier", e.target.value)}>
                     <option value="">— None —</option>
-                    {players.map(p => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={labelStyle}>Thrower</label>
                   <select style={inputStyle} value={form.thrower} onChange={e => f("thrower", e.target.value)}>
                     <option value="">— None —</option>
-                    {players.map(p => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={labelStyle}>Receiver</label>
                   <select style={inputStyle} value={form.receiver} onChange={e => f("receiver", e.target.value)}>
                     <option value="">— None —</option>
-                    {players.map(p => <option key={p.id} value={p.id}>#{p.number} {p.name}</option>)}
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -1065,7 +1072,7 @@ export default function FootballCoach() {
                     <div style={{ background: THEME.buttonBg, padding: "20px 28px", borderRadius: "20px 20px 0 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{pl.name}</div>
-                        <div style={{ fontSize: 12, color: "#a8b8c8", marginTop: 2 }}>#{pl.number} · {pl.position} · {plPlays.length} total plays</div>
+                        <div style={{ fontSize: 12, color: "#a8b8c8", marginTop: 2 }}>{pl.position} · {plPlays.length} total plays</div>
                       </div>
                       <button onClick={() => setSelectedPlayer(null)} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 18, fontFamily: "inherit" }}>×</button>
                     </div>
@@ -1205,7 +1212,6 @@ export default function FootballCoach() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
                 <input style={inputStyle} placeholder="Name" value={newPlayer.name} onChange={e => setNewPlayer(p => ({ ...p, name: e.target.value }))} />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <input style={inputStyle} placeholder="# Number" value={newPlayer.number} onChange={e => setNewPlayer(p => ({ ...p, number: e.target.value }))} />
                   <select style={inputStyle} value={newPlayer.position} onChange={e => setNewPlayer(p => ({ ...p, position: e.target.value }))}>
                     <option value="">— Position —</option>
                     {positions.map(pos => <option key={pos}>{pos}</option>)}
@@ -1214,7 +1220,7 @@ export default function FootballCoach() {
                 <button onClick={() => {
                   if (newPlayer.name.trim()) {
                     setPlayers(p => [...p, { ...newPlayer, id: Date.now() }]);
-                    setNewPlayer({ name: "", position: "", number: "" });
+                    setNewPlayer({ name: "", position: "" });
                   }
                 }} style={{ padding: "9px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
                   Add Player
@@ -1223,7 +1229,7 @@ export default function FootballCoach() {
               <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
                 {players.map(p => (
                   <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#374151", flex: 1 }}>#{p.number} {p.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#374151", flex: 1 }}>{p.name}</span>
                     <Badge color="purple">{p.position}</Badge>
                     <button onClick={() => setPlayers(pl => pl.filter(x => x.id !== p.id))} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 16, padding: 0 }}>×</button>
                   </div>
