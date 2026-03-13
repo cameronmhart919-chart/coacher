@@ -245,14 +245,14 @@ export default function FootballCoach() {
         const s = byPlayer[p.thrower];
         s.isThrower = true;
         if (o !== "Throw Away" && o !== "Sack") s.attempts++;
-        if (o === "Interception") s.ints++;
+        if (o === "Interception" || o === "INT") s.ints++;
         if (o === "Throw Away")   s.throwAways++;
         if (o === "Sack")         s.sacks++;
         if (o === "Drop")         s.drops++;
         if (o === "Incomplete")   s.incompletions++;
         if (o === TD) s.tds++;
         // Credit yards/receptions on any completed pass (not inc/drop/int/throwaway/sack)
-        if (!["Incomplete","Drop","Interception","Throw Away","Sack"].includes(o)) {
+        if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
           if (p.yardsGained > 0 || o === TD) s.recGain++;
@@ -270,7 +270,7 @@ export default function FootballCoach() {
         if (o === "Drop")         s.drops++;
         if (o === TD) s.tds++;
         // Credit yards/receptions on any completed pass (not inc/drop/int/throwaway/sack)
-        if (!["Incomplete","Drop","Interception","Throw Away","Sack"].includes(o)) {
+        if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
           if (p.yardsGained > 0 || o === TD) s.recGain++;
@@ -329,12 +329,12 @@ export default function FootballCoach() {
       const s = byCode[p.playCode];
       if (isPassPlay(p)) {
         if (o !== "Throw Away" && o !== "Sack") s.attempts++;
-        if (o === "Interception")  s.ints++;
+        if (o === "Interception" || o === "INT")  s.ints++;
         if (o === "Throw Away")    s.throwAways++;
         if (o === "Sack")          s.sacks++;
         if (o === "Drop")          s.drops++;
         if (o === "Incomplete")    s.incompletions++;
-        if ([TD,"Gain","First Down","No Gain","Loss"].includes(o)) {
+        if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
           s.receptions++;
           if (p.yardsGained > 0 || o === TD) s.recGain++;
           if (p.yardsGained < 0) s.recLoss++;
@@ -359,9 +359,9 @@ export default function FootballCoach() {
 
   const outcomeColor = (o) => {
     if (o === tdOutcome) return "green";
-    if (["First Down", "Gain"].includes(o)) return "blue";
-    if (["Interception", "Fumble"].includes(o)) return "red";
-    if (o === "Loss") return "red";
+    if (["Reception - Gain", "Run - Gain", "First Down", "Gain"].includes(o)) return "blue";
+    if (["Interception", "INT", "Fumble"].includes(o)) return "red";
+    if (["Reception - Loss", "Run - Loss", "Loss"].includes(o)) return "red";
     return "gray";
   };
 
@@ -1004,13 +1004,13 @@ export default function FootballCoach() {
                 const o = (p.outcome || "").trim();
                 if (p.thrower === String(pl.id) && isPassPlay(p)) {
                   if (o !== "Throw Away" && o !== "Sack") stats.attempts++;
-                  if (o === "Interception") stats.ints++;
+                  if (o === "Interception" || o === "INT") stats.ints++;
                   if (o === "Throw Away") stats.throwAways++;
                   if (o === "Sack") stats.sacks++;
                   if (o === "Drop") stats.drops++;
                   if (o === "Incomplete") stats.incompletions++;
                   if (o === tdOutcome) stats.tds++;
-                  if (!["Incomplete","Drop","Interception","Throw Away","Sack"].includes(o)) {
+                  if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
                     stats.receptions++;
                     stats.yards += p.yardsGained;
                     if (p.yardsGained > 0 || o === tdOutcome) stats.recGain++;
@@ -1022,7 +1022,7 @@ export default function FootballCoach() {
                   if (o === "Incomplete") stats.incompletions++;
                   if (o === "Drop") stats.drops++;
                   if (o === tdOutcome) stats.tds++;
-                  if (!["Incomplete","Drop","Interception","Throw Away","Sack"].includes(o)) {
+                  if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
                     stats.receptions++;
                     stats.yards += p.yardsGained;
                     if (p.yardsGained > 0 || o === tdOutcome) stats.recGain++;
