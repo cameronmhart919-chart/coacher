@@ -120,6 +120,7 @@ export default function FootballCoach() {
   const [gameScores, setGameScores] = useLocalStorage("coachlog_gamescores", {}); // { gameName: { us, them, result } }
   const [coachNotes, setCoachNotes] = useLocalStorage("coachlog_coachnotes", {}); // { playerId: string }
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [pendingImport, setPendingImport] = useState(null); // holds parsed backup data waiting for user choice
 
   // Log Play form state
   const [form, setForm] = useState({
@@ -1397,12 +1398,7 @@ export default function FootballCoach() {
                     try {
                       const data = JSON.parse(evt.target.result);
                       if (!data.plays) { alert("Invalid backup file."); return; }
-                      if (!window.confirm("This will replace your current plays, games, players, and play codes. Continue?")) return;
-                      if (data.plays)     setPlays(data.plays);
-                      if (data.games)     setGames(data.games);
-                      if (data.players)   setPlayers(data.players);
-                      if (data.playCodes) setPlayCodes(data.playCodes);
-                      alert("Import successful!");
+                      setPendingImport(data);
                     } catch {
                       alert("Failed to read backup file. Make sure it's a valid Coacher backup.");
                     }
@@ -1411,6 +1407,49 @@ export default function FootballCoach() {
                   e.target.value = "";
                 }} />
               </label>
+
+              {/* Import choice modal */}
+              {pendingImport && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                  <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 440, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: "#111827", marginBottom: 8 }}>Import Backup</div>
+                    <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 24 }}>
+                      Found <strong>{pendingImport.plays.length} plays</strong> in this backup. How would you like to import?
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <button onClick={() => {
+                        if (pendingImport.plays)     setPlays(pendingImport.plays);
+                        if (pendingImport.games)     setGames(pendingImport.games);
+                        if (pendingImport.players)   setPlayers(pendingImport.players);
+                        if (pendingImport.playCodes) setPlayCodes(pendingImport.playCodes);
+                        setPendingImport(null);
+                        alert("Import successful! All data replaced.");
+                      }} style={{ padding: "12px 18px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
+                        🔄 Replace Everything
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>Replaces all plays, games, players, and play codes</div>
+                      </button>
+                      <button onClick={() => {
+                        const existingIds = new Set(plays.map(p => p.id));
+                        const newPlays = pendingImport.plays.filter(p => !existingIds.has(p.id));
+                        if (newPlays.length === 0) {
+                          alert("No new plays found — all plays in the backup already exist.");
+                        } else {
+                          setPlays(prev => [...prev, ...newPlays]);
+                          alert(`Added ${newPlays.length} new play${newPlays.length !== 1 ? "s" : ""} from backup.`);
+                        }
+                        setPendingImport(null);
+                      }} style={{ padding: "12px 18px", background: "#e0f2fe", color: "#0369a1", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
+                        ➕ Add New Plays Only
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>Merges new plays, keeps your current setup</div>
+                      </button>
+                      <button onClick={() => setPendingImport(null)}
+                        style={{ padding: "10px 18px", background: "#f3f4f6", color: "#6b7280", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
+                        Cancel Import
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <button onClick={() => {
                 if (window.confirm("Are you sure you want to delete ALL plays? This cannot be undone.")) {
                   setPlays([]);
