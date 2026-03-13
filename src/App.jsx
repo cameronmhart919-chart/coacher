@@ -36,7 +36,7 @@ const THEME = {
   saveColor: "#065f46",
 };
 
-const PLAY_TYPES = ["Run", "Pass", "Screen", "Sweep", "Draw", "Option", "QB Sneak", "Reverse"];
+const PLAY_TYPES = ["Pass", "Run"];
 const DEFAULT_OUTCOMES = ["Reception - Gain", "Reception - Loss", "Incomplete", "Drop", "TD", "INT", "Run - Gain", "Run - Loss", "Throw Away", "Sack"];
 const DEFAULT_POSITIONS = ["QB", "WR"];
 
@@ -185,7 +185,7 @@ export default function FootballCoach() {
     const fp = filteredPlays;
     if (!fp.length) return null;
     const TD = tdOutcome;
-    const isPassPlay = (p) => ["Pass", "Screen"].includes(p.playType);
+    const isPassPlay = (p) => p.playType === "Pass";
     const isSuccess = (p) => {
       const o = (p.outcome || "").trim();
       if (o === TD) return true;                          // TD always success
@@ -345,7 +345,7 @@ export default function FootballCoach() {
         if (p.yardsGained < 0) s.runLoss++;
       }
       if (o === TD) s.tds++;
-      s.yards += p.yardsGained;
+      s.yards += Number(p.yardsGained) || 0;
     });
 
     // Totals for play code table
@@ -483,13 +483,6 @@ export default function FootballCoach() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
                 <div>
-                  <label style={labelStyle}>Ball Carrier</label>
-                  <select style={inputStyle} value={form.carrier} onChange={e => f("carrier", e.target.value)}>
-                    <option value="">— None —</option>
-                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
                   <label style={labelStyle}>Thrower</label>
                   <select style={inputStyle} value={form.thrower} onChange={e => f("thrower", e.target.value)}>
                     <option value="">— None —</option>
@@ -499,6 +492,13 @@ export default function FootballCoach() {
                 <div>
                   <label style={labelStyle}>Receiver</label>
                   <select style={inputStyle} value={form.receiver} onChange={e => f("receiver", e.target.value)}>
+                    <option value="">— None —</option>
+                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Ball Carrier</label>
+                  <select style={inputStyle} value={form.carrier} onChange={e => f("carrier", e.target.value)}>
                     <option value="">— None —</option>
                     {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -672,8 +672,7 @@ export default function FootballCoach() {
                         </tr>
                       ))}
                       <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
-                        <td style={{ padding: "10px 10px", fontWeight: 900, color: "#111827", fontSize: 11, letterSpacing: 0.5 }}>TOTALS</td>
-                        <td></td>
+                        <td style={{ padding: "10px 10px", fontWeight: 900, color: "#111827", fontSize: 11, letterSpacing: 0.5, colSpan: 2 }}>TOTALS</td>
                         {(() => {
                           const ct = analytics.codeTotals;
                           const cmpPct = ct.attempts > 0 ? `${Math.round(ct.receptions / ct.attempts * 100)}%` : "—";
@@ -821,7 +820,7 @@ export default function FootballCoach() {
               const score = gameScores[game] || { us: "", them: "", result: "" };
               const totalYards = gPlays.reduce((a, b) => a + b.yardsGained, 0);
               const tds = gPlays.filter(p => p.outcome === tdOutcome).length;
-              const isPassPlay = p => ["Pass", "Screen"].includes(p.playType);
+              const isPassPlay = p => p.playType === "Pass";
               const passPlays = gPlays.filter(isPassPlay);
               const runPlays = gPlays.filter(p => !isPassPlay(p));
 
@@ -995,7 +994,7 @@ export default function FootballCoach() {
             {/* Modal */}
             {selectedPlayer && (() => {
               const pl = selectedPlayer;
-              const isPassPlay = p => ["Pass", "Screen"].includes(p.playType);
+              const isPassPlay = p => p.playType === "Pass";
               const plPlays = plays.filter(p => [p.carrier, p.receiver, p.thrower].includes(String(pl.id)));
 
               // Full stat line
@@ -1388,6 +1387,30 @@ export default function FootballCoach() {
               }} style={{ padding: "9px 18px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
                 ⬇ Export Backup
               </button>
+              <label style={{ padding: "9px 18px", background: "#e0f2fe", color: "#0369a1", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
+                ⬆ Import Backup
+                <input type="file" accept=".json" style={{ display: "none" }} onChange={e => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = evt => {
+                    try {
+                      const data = JSON.parse(evt.target.result);
+                      if (!data.plays) { alert("Invalid backup file."); return; }
+                      if (!window.confirm("This will replace your current plays, games, players, and play codes. Continue?")) return;
+                      if (data.plays)     setPlays(data.plays);
+                      if (data.games)     setGames(data.games);
+                      if (data.players)   setPlayers(data.players);
+                      if (data.playCodes) setPlayCodes(data.playCodes);
+                      alert("Import successful!");
+                    } catch {
+                      alert("Failed to read backup file. Make sure it's a valid Coacher backup.");
+                    }
+                  };
+                  reader.readAsText(file);
+                  e.target.value = "";
+                }} />
+              </label>
               <button onClick={() => {
                 if (window.confirm("Are you sure you want to delete ALL plays? This cannot be undone.")) {
                   setPlays([]);
