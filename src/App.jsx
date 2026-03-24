@@ -1,5 +1,173 @@
 import { useState, useMemo, useEffect } from "react";
 
+// ── Shared game view (read-only, decoded from URL) ──────────────────────────
+function SharedGameView() {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get("share");
+  if (!encoded) return null;
+  let data;
+  try {
+    data = JSON.parse(decodeURIComponent(atob(encoded)));
+  } catch {
+    return <div style={{ padding: 40, textAlign: "center", color: "#dc2626" }}>Invalid share link.</div>;
+  }
+  const { game, score, plays, players, tdOutcome } = data;
+  const totalYards = plays.reduce((a, b) => a + (Number(b.yardsGained) || 0), 0);
+  const tds = plays.filter(p => p.outcome === tdOutcome).length;
+  const isPassPlay = p => p.playType === "Pass";
+  const resultColor = score.result === "W" ? "#059669" : score.result === "L" ? "#dc2626" : "#6b7280";
+
+  // Build per-player stats
+  const byPlayer = {};
+  const ensureP = (pid, role) => {
+    if (!byPlayer[pid]) {
+      const pl = players.find(x => x.id === Number(pid));
+      if (!pl) return false;
+      byPlayer[pid] = { name: pl.name, position: pl.position, attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, runs: 0, runGain: 0, runLoss: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0, isThrower: false, isReceiver: false, isRunner: false };
+    }
+    return true;
+  };
+  plays.forEach(p => {
+    const o = (p.outcome || "").trim();
+    const TD = tdOutcome;
+    const notComplete = ["Incomplete","Drop","Interception","INT","Throw Away","Sack"];
+    if (p.thrower && isPassPlay(p) && ensureP(p.thrower)) {
+      const s = byPlayer[p.thrower]; s.isThrower = true;
+      if (o !== "Throw Away" && o !== "Sack") s.attempts++;
+      if (o === "Interception" || o === "INT") s.ints++;
+      if (o === "Throw Away") s.throwAways++;
+      if (o === "Sack") s.sacks++;
+      if (o === "Drop") s.drops++;
+      if (o === "Incomplete") s.incompletions++;
+      if (o === TD) s.tds++;
+      if (!notComplete.includes(o) && o !== "") { s.receptions++; s.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) s.recGain++; if ((Number(p.yardsGained)||0) < 0) s.recLoss++; }
+    }
+    if (p.receiver && p.receiver !== p.thrower && isPassPlay(p) && ensureP(p.receiver)) {
+      const s = byPlayer[p.receiver]; s.isReceiver = true; s.attempts++;
+      if (o === "Incomplete") s.incompletions++;
+      if (o === "Drop") s.drops++;
+      if (o === TD) s.tds++;
+      if (!notComplete.includes(o) && o !== "") { s.receptions++; s.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) s.recGain++; if ((Number(p.yardsGained)||0) < 0) s.recLoss++; }
+    }
+    if (p.carrier && !isPassPlay(p) && ensureP(p.carrier)) {
+      const s = byPlayer[p.carrier]; s.isRunner = true; s.runs++; s.yards += Number(p.yardsGained)||0;
+      if ((Number(p.yardsGained)||0) > 0 || o === TD) s.runGain++; if ((Number(p.yardsGained)||0) < 0) s.runLoss++;
+      if (o === TD) s.tds++;
+    }
+  });
+
+  const throwers = Object.values(byPlayer).filter(p => p.isThrower).sort((a,b) => a.name.localeCompare(b.name));
+  const recRunners = Object.values(byPlayer).filter(p => (p.isReceiver || p.isRunner) && !p.isThrower).sort((a,b) => a.name.localeCompare(b.name));
+
+  const thStyle = { padding: "8px 10px", textAlign: "center", fontWeight: 700, color: "#fff", fontSize: 11, textTransform: "uppercase", whiteSpace: "nowrap" };
+  const tdStyle = (color) => ({ padding: "8px 10px", textAlign: "center", color: color || "#374151", fontSize: 12 });
+
+  return (
+    <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#f4f6fa", minHeight: "100vh", padding: 24 }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg, #000 0%, #111 100%)", borderRadius: 16, padding: "20px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{game}</div>
+            <div style={{ fontSize: 13, color: "#a8b8c8", marginTop: 2 }}>Game Summary · {plays.length} plays</div>
+          </div>
+          {(score.us !== "" || score.them !== "") && (
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 32, fontWeight: 900, color: "#fff" }}>{score.us} — {score.them}</div>
+                {score.result && <div style={{ fontSize: 14, fontWeight: 800, color: resultColor }}>{score.result === "W" ? "WIN" : score.result === "L" ? "LOSS" : "TIE"}</div>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Overview */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {[["Total Plays", plays.length], ["Total Yards", totalYards], ["Touchdowns", tds]].map(([label, val]) => (
+            <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: "16px 20px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#111827" }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Throwers table */}
+        {throwers.length > 0 && (
+          <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Throwers</div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: "#1a2f5e" }}>
+                {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h,i) => (
+                  <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center", padding: i < 2 ? "8px 10px" : "8px 10px" }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {throwers.map((p, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
+                    <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
+                    <td style={{ padding:"8px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"2px 8px", borderRadius:999, fontSize:11, fontWeight:700 }}>{p.position}</span></td>
+                    <td style={tdStyle()}>{p.attempts||"—"}</td>
+                    <td style={tdStyle()}>{p.receptions||"—"}</td>
+                    <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
+                    <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
+                    <td style={tdStyle("#dc2626")}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>
+                    <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
+                    <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
+                    <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
+                    <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
+                    <td style={tdStyle("#dc2626")}>{p.ints>0?p.ints:"—"}</td>
+                    <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
+                    <td style={tdStyle("#6b7280")}>{p.throwAways||"—"}</td>
+                    <td style={tdStyle()}>{p.sacks||"—"}</td>
+                    <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Receivers & Runners table */}
+        {recRunners.length > 0 && (
+          <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Receivers & Runners</div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: "#1a2f5e" }}>
+                {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","Yards"].map((h,i) => (
+                  <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {recRunners.map((p, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
+                    <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
+                    <td style={{ padding:"8px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"2px 8px", borderRadius:999, fontSize:11, fontWeight:700 }}>{p.position}</span></td>
+                    <td style={tdStyle()}>{p.attempts||"—"}</td>
+                    <td style={tdStyle()}>{p.receptions||"—"}</td>
+                    <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
+                    <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
+                    <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
+                    <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
+                    <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
+                    <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
+                    <td style={tdStyle()}>{p.runs||"—"}</td>
+                    <td style={tdStyle("#059669")}>{p.runGain||"—"}</td>
+                    <td style={tdStyle("#dc2626")}>{p.runLoss||"—"}</td>
+                    <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
+                    <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", fontSize: 12, color: "#9ca3af" }}>Generated by Coacher</div>
+      </div>
+    </div>
+  );
+}
+
 function useLocalStorage(key, defaultValue) {
   const [value, setValue] = useState(() => {
     try {
@@ -102,6 +270,10 @@ function StatCard({ label, value, sub, accent }) {
 }
 
 export default function FootballCoach() {
+  // Show shared game view if ?share= param is present
+  if (new URLSearchParams(window.location.search).get("share")) {
+    return <SharedGameView />;
+  }
   const [tab, setTab] = useState("Log Play");
   const [plays, setPlays] = useLocalStorage("coachlog_plays", []);
   const [games, setGames] = useLocalStorage("coachlog_games", ["Game 1", "Game 2", "Game 3", "Game 4", "Game 5", "Game 6", "Game 7", "Game 8"]);
@@ -878,6 +1050,16 @@ export default function FootballCoach() {
                             color: "#fff" }}>{r}</button>
                       ))}
                       {gPlays.length > 0 && <span style={{ color: "#a8b8c8", fontSize: 12 }}>{gPlays.length} plays</span>}
+                      {gPlays.length > 0 && (
+                        <button onClick={() => {
+                          const payload = { game, score, plays: gPlays, players, tdOutcome };
+                          const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+                          const url = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+                          navigator.clipboard.writeText(url).then(() => alert("Share link copied to clipboard!")).catch(() => prompt("Copy this link:", url));
+                        }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+                          🔗 Share
+                        </button>
+                      )}
                     </div>
                   </div>
 
