@@ -222,7 +222,8 @@ const initialPlayers = [
 ];
 
 const TABS = ["Play Logger", "Play Log", "Analytics", "Game Summary", "Report Cards", "Manage"];
-const DEFAULT_DEF_OUTCOMES = ["Pass Breakup", "INT", "Pass Allowed", "Run - Gain", "Run - Loss", "Touchdown Allowed", "Sack"];
+const DEFAULT_DEF_OUTCOMES = ["Pass Incomplete", "Pass Allowed - Gain", "Pass Allowed - Loss", "Run - Gain", "Run - Loss", "Touchdown Allowed", "XP Allowed", "INT", "Sack - Time", "Sack - Blitz"];
+const DEFAULT_PLAYER_ACTIONS = ["PBU", "Flag Pull", "INT", "Sack"];
 
 const successOutcomes = new Set(["TD", "Reception - Gain", "Run - Gain"]);
 
@@ -294,8 +295,9 @@ export default function FootballCoach() {
   const [coachNotes, setCoachNotes] = useLocalStorage("coachlog_coachnotes", {}); // { playerId: string }
   const [defPlays, setDefPlays] = useLocalStorage("coachlog_defplays", []);
   const [defOutcomes, setDefOutcomes] = useLocalStorage("coachlog_defoutcomes", DEFAULT_DEF_OUTCOMES);
+  const [playerActions, setPlayerActions] = useLocalStorage("coachlog_playeractions", DEFAULT_PLAYER_ACTIONS);
   const [defForm, setDefForm] = useState({
-    game: "Game 1", quarter: "1", down: "1", distance: "", playType: "", player: "", outcome: "", yardsAllowed: "", notes: "",
+    game: "Game 1", quarter: "1", down: "1", distance: "", playType: "", player: "", outcome: "", playerAction: "", yardsAllowed: "", notes: "",
   });
   const df = (k, v) => setDefForm(p => ({ ...p, [k]: v }));
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -329,6 +331,8 @@ export default function FootballCoach() {
   const [editingOutcome, setEditingOutcome] = useState(null); // { index, value }
   const [newDefOutcome, setNewDefOutcome] = useState("");
   const [editingDefOutcome, setEditingDefOutcome] = useState(null); // { index, value }
+  const [newPlayerAction, setNewPlayerAction] = useState("");
+  const [editingPlayerAction, setEditingPlayerAction] = useState(null); // { index, value }
 
   // Analytics filter
   const [filterGame, setFilterGame] = useState("All");
@@ -821,6 +825,23 @@ export default function FootballCoach() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
                 <div>
+                  <label style={labelStyle}>Outcome *</label>
+                  <select style={inputStyle} value={defForm.outcome} onChange={e => df("outcome", e.target.value)}>
+                    <option value="">— Select —</option>
+                    {defOutcomes.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Player Action</label>
+                  <select style={inputStyle} value={defForm.playerAction} onChange={e => df("playerAction", e.target.value)}>
+                    <option value="">— None —</option>
+                    {playerActions.map(a => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                <div>
                   <label style={labelStyle}>Player Who Made the Play</label>
                   <select style={inputStyle} value={defForm.player} onChange={e => df("player", e.target.value)}>
                     <option value="">— None —</option>
@@ -828,30 +849,21 @@ export default function FootballCoach() {
                   </select>
                 </div>
                 <div>
-                  <label style={labelStyle}>Outcome *</label>
-                  <select style={inputStyle} value={defForm.outcome} onChange={e => df("outcome", e.target.value)}>
-                    <option value="">— Select —</option>
-                    {defOutcomes.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14, marginBottom: 20 }}>
-                <div>
                   <label style={labelStyle}>Yards Allowed</label>
                   <input style={inputStyle} type="number" placeholder="0" value={defForm.yardsAllowed} onChange={e => df("yardsAllowed", e.target.value)} />
                 </div>
-                <div>
-                  <label style={labelStyle}>Notes</label>
-                  <input style={inputStyle} placeholder="Optional notes..." value={defForm.notes} onChange={e => df("notes", e.target.value)} />
-                </div>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle}>Notes</label>
+                <input style={inputStyle} placeholder="Optional notes..." value={defForm.notes} onChange={e => df("notes", e.target.value)} />
               </div>
 
               <button onClick={() => {
                 if (!defForm.outcome) return;
                 const play = { id: Date.now(), ...defForm, yardsAllowed: Number(defForm.yardsAllowed) || 0, timestamp: new Date().toISOString() };
                 setDefPlays(p => [play, ...p]);
-                setDefForm(prev => ({ ...prev, down: String(Math.min(4, Number(prev.down) + 1)), playType: "", player: "", outcome: "", yardsAllowed: "", notes: "" }));
+                setDefForm(prev => ({ ...prev, down: String(Math.min(4, Number(prev.down) + 1)), playType: "", player: "", outcome: "", playerAction: "", yardsAllowed: "", notes: "" }));
               }} style={{ width: "100%", padding: "13px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
                 + Log Defensive Play
               </button>
@@ -871,6 +883,7 @@ export default function FootballCoach() {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
                             <span style={{ fontSize: 11, fontWeight: 700, background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 999 }}>{p.outcome}</span>
+                            {p.playerAction && <span style={{ fontSize: 11, fontWeight: 700, background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: 999 }}>{p.playerAction}</span>}
                             {p.playType && <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{p.playType}</span>}
                           </div>
                           <div style={{ fontSize: 12, color: "#374151" }}>
@@ -2131,9 +2144,44 @@ export default function FootballCoach() {
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Data controls */}
+            {/* Player Actions */}
+            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Player Actions</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <input style={{ ...inputStyle, flex: 1 }} placeholder="e.g. Tackle, Strip" value={newPlayerAction}
+                  onChange={e => setNewPlayerAction(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && newPlayerAction.trim()) { setPlayerActions(a => [...a, newPlayerAction.trim()]); setNewPlayerAction(""); }}} />
+                <button onClick={() => { if (newPlayerAction.trim()) { setPlayerActions(a => [...a, newPlayerAction.trim()]); setNewPlayerAction(""); } }}
+                  style={{ padding: "9px 14px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>Add</button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+                {playerActions.map((a, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    {editingPlayerAction?.index === i ? (
+                      <>
+                        <input autoFocus style={{ ...inputStyle, flex: 1, padding: "4px 8px", fontSize: 13 }}
+                          value={editingPlayerAction.value}
+                          onChange={e => setEditingPlayerAction(ea => ({ ...ea, value: e.target.value }))}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") { const val = editingPlayerAction.value.trim(); if (val) setPlayerActions(as => as.map((x, j) => j === i ? val : x)); setEditingPlayerAction(null); }
+                            if (e.key === "Escape") setEditingPlayerAction(null);
+                          }} />
+                        <button onClick={() => { const val = editingPlayerAction.value.trim(); if (val) setPlayerActions(as => as.map((x, j) => j === i ? val : x)); setEditingPlayerAction(null); }} style={{ border: "none", background: "#d1fae5", color: "#065f46", borderRadius: 6, padding: "3px 8px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>Save</button>
+                        <button onClick={() => setEditingPlayerAction(null)} style={{ border: "none", background: "none", color: "#9ca3af", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", flex: 1 }}>{a}</span>
+                        <button onClick={() => setEditingPlayerAction({ index: i, value: a })} style={{ border: "none", background: "none", color: "#6b7280", cursor: "pointer", fontSize: 13, padding: "0 2px" }} title="Rename">✏️</button>
+                        <button onClick={() => { if (window.confirm(`Delete action "${a}"?`)) setPlayerActions(as => as.filter((_, j) => j !== i)); }} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>Data Management</div>
@@ -2148,7 +2196,7 @@ export default function FootballCoach() {
                 </select>
               </div>
               <button onClick={() => {
-                const data = { plays, games, players, playCodes, defPlays, defOutcomes, exported: new Date().toISOString() };
+                const data = { plays, games, players, playCodes, defPlays, defOutcomes, playerActions, exported: new Date().toISOString() };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a"); a.href = url; a.download = "coachlog-backup.json"; a.click();
@@ -2186,12 +2234,13 @@ export default function FootballCoach() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <button onClick={() => {
-                        if (pendingImport.plays)       setPlays(pendingImport.plays);
-                        if (pendingImport.games)       setGames(pendingImport.games);
-                        if (pendingImport.players)     setPlayers(pendingImport.players);
-                        if (pendingImport.playCodes)   setPlayCodes(pendingImport.playCodes);
-                        if (pendingImport.defPlays)    setDefPlays(pendingImport.defPlays);
-                        if (pendingImport.defOutcomes) setDefOutcomes(pendingImport.defOutcomes);
+                        if (pendingImport.plays)        setPlays(pendingImport.plays);
+                        if (pendingImport.games)        setGames(pendingImport.games);
+                        if (pendingImport.players)      setPlayers(pendingImport.players);
+                        if (pendingImport.playCodes)    setPlayCodes(pendingImport.playCodes);
+                        if (pendingImport.defPlays)     setDefPlays(pendingImport.defPlays);
+                        if (pendingImport.defOutcomes)  setDefOutcomes(pendingImport.defOutcomes);
+                        if (pendingImport.playerActions) setPlayerActions(pendingImport.playerActions);
                         setPendingImport(null);
                         alert("Import successful! All data replaced.");
                       }} style={{ padding: "12px 18px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
