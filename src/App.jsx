@@ -221,7 +221,7 @@ const initialPlayers = [
   { id: 10, name: "Tate", position: "WR" },
 ];
 
-const TABS = ["Offensive Play Logger", "Defensive Play Logger", "Analytics", "Game Summary", "Report Cards", "Manage"];
+const TABS = ["Offensive Play Logger", "Defensive Play Logger", "Play Log", "Analytics", "Game Summary", "Report Cards", "Manage"];
 const DEFAULT_DEF_OUTCOMES = ["Pass Breakup", "INT", "Pass Allowed", "Run - Gain", "Run - Loss", "Touchdown Allowed", "Sack"];
 
 const successOutcomes = new Set(["TD", "Reception - Gain", "Run - Gain"]);
@@ -332,6 +332,13 @@ export default function FootballCoach() {
 
   // Analytics filter
   const [filterGame, setFilterGame] = useState("All");
+
+  // Play Log filters & edit state
+  const [logFilterGame, setLogFilterGame] = useState("All");
+  const [logFilterPlayer, setLogFilterPlayer] = useState("All");
+  const [logFilterSide, setLogFilterSide] = useState("All"); // All / Offense / Defense
+  const [logFilterCode, setLogFilterCode] = useState("All");
+  const [editingPlay, setEditingPlay] = useState(null); // { play, side } where side = "offense"|"defense"
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -869,6 +876,181 @@ export default function FootballCoach() {
             </div>
           </div>
         )}
+
+        {/* ───── PLAY LOG TAB ───── */}
+        {tab === "Play Log" && (() => {
+          // Merge offense and defense plays with a side tag
+          const allPlays = [
+            ...plays.map(p => ({ ...p, side: "offense" })),
+            ...defPlays.map(p => ({ ...p, side: "defense" })),
+          ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+          const filtered = allPlays.filter(p => {
+            if (logFilterGame !== "All" && p.game !== logFilterGame) return false;
+            if (logFilterSide !== "All" && p.side !== logFilterSide.toLowerCase()) return false;
+            if (logFilterCode !== "All" && p.playCode !== logFilterCode) return false;
+            if (logFilterPlayer !== "All") {
+              const pid = String(logFilterPlayer);
+              const inPlay = p.side === "offense"
+                ? [String(p.carrier), String(p.thrower), String(p.receiver)].includes(pid)
+                : String(p.player) === pid;
+              if (!inPlay) return false;
+            }
+            return true;
+          });
+
+          const selStyle = { padding: "7px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, fontFamily: "inherit", color: "#111827", background: "#fff" };
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Filters */}
+              <div style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #e5e7eb", padding: "16px 20px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Filter:</span>
+                <select style={selStyle} value={logFilterSide} onChange={e => setLogFilterSide(e.target.value)}>
+                  <option value="All">All Plays</option>
+                  <option value="offense">Offense</option>
+                  <option value="defense">Defense</option>
+                </select>
+                <select style={selStyle} value={logFilterGame} onChange={e => setLogFilterGame(e.target.value)}>
+                  <option value="All">All Games</option>
+                  {games.map(g => <option key={g}>{g}</option>)}
+                </select>
+                <select style={selStyle} value={logFilterPlayer} onChange={e => setLogFilterPlayer(e.target.value)}>
+                  <option value="All">All Players</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select style={selStyle} value={logFilterCode} onChange={e => setLogFilterCode(e.target.value)}>
+                  <option value="All">All Play Codes</option>
+                  {playCodes.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
+                </select>
+                <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: "auto" }}>{filtered.length} play{filtered.length !== 1 ? "s" : ""}</span>
+              </div>
+
+              {/* Play list */}
+              {filtered.length === 0 ? (
+                <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 15 }}>
+                  No plays match your filters.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {filtered.map(p => {
+                    const pl = p.side === "offense"
+                      ? null
+                      : players.find(x => x.id === Number(p.player));
+                    const thrower  = players.find(x => x.id === Number(p.thrower));
+                    const receiver = players.find(x => x.id === Number(p.receiver));
+                    const carrier  = players.find(x => x.id === Number(p.carrier));
+                    const isEditing = editingPlay?.play.id === p.id;
+
+                    return (
+                      <div key={p.id} style={{ background: "#fff", borderRadius: 12, border: `1.5px solid ${p.side === "offense" ? "#e5e7eb" : "#fee2e2"}`, padding: "14px 18px" }}>
+                        {isEditing ? (
+                          /* ── Edit mode ── */
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <select style={selStyle} value={editingPlay.play.game} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, game: e.target.value } }))}>
+                                {games.map(g => <option key={g}>{g}</option>)}
+                              </select>
+                              <select style={selStyle} value={editingPlay.play.quarter} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, quarter: e.target.value } }))}>
+                                {["1","2","3","4","OT"].map(q => <option key={q}>{q}</option>)}
+                              </select>
+                              <select style={selStyle} value={editingPlay.play.down} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, down: e.target.value } }))}>
+                                {["1","2","3","4"].map(d => <option key={d}>{d}</option>)}
+                              </select>
+                              <input style={{ ...selStyle, width: 80 }} type="number" placeholder="Dist" value={editingPlay.play.distance} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, distance: e.target.value } }))} />
+                              <select style={selStyle} value={editingPlay.play.playType} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, playType: e.target.value } }))}>
+                                <option value="">— Type —</option>
+                                <option>Pass</option><option>Run</option>
+                              </select>
+                              {p.side === "offense" && (
+                                <select style={selStyle} value={editingPlay.play.playCode} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, playCode: e.target.value } }))}>
+                                  <option value="">— Code —</option>
+                                  {playCodes.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
+                                </select>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {p.side === "offense" ? (<>
+                                <select style={selStyle} value={editingPlay.play.thrower} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, thrower: e.target.value } }))}>
+                                  <option value="">— Thrower —</option>
+                                  {players.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                                </select>
+                                <select style={selStyle} value={editingPlay.play.receiver} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, receiver: e.target.value } }))}>
+                                  <option value="">— Receiver —</option>
+                                  {players.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                                </select>
+                                <select style={selStyle} value={editingPlay.play.carrier} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, carrier: e.target.value } }))}>
+                                  <option value="">— Carrier —</option>
+                                  {players.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                                </select>
+                                <select style={selStyle} value={editingPlay.play.outcome} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, outcome: e.target.value } }))}>
+                                  <option value="">— Outcome —</option>
+                                  {outcomes.map(o => <option key={o}>{o}</option>)}
+                                </select>
+                                <input style={{ ...selStyle, width: 90 }} type="number" placeholder="Yards" value={editingPlay.play.yardsGained} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, yardsGained: e.target.value } }))} />
+                              </>) : (<>
+                                <select style={selStyle} value={editingPlay.play.player} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, player: e.target.value } }))}>
+                                  <option value="">— Player —</option>
+                                  {players.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                                </select>
+                                <select style={selStyle} value={editingPlay.play.outcome} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, outcome: e.target.value } }))}>
+                                  <option value="">— Outcome —</option>
+                                  {defOutcomes.map(o => <option key={o}>{o}</option>)}
+                                </select>
+                                <input style={{ ...selStyle, width: 110 }} type="number" placeholder="Yds Allowed" value={editingPlay.play.yardsAllowed} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, yardsAllowed: e.target.value } }))} />
+                              </>)}
+                              <input style={{ ...selStyle, flex: 1, minWidth: 160 }} placeholder="Notes" value={editingPlay.play.notes} onChange={e => setEditingPlay(ep => ({ ...ep, play: { ...ep.play, notes: e.target.value } }))} />
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button onClick={() => {
+                                if (p.side === "offense") {
+                                  setPlays(prev => prev.map(x => x.id === editingPlay.play.id ? { ...editingPlay.play, yardsGained: Number(editingPlay.play.yardsGained) || 0 } : x));
+                                } else {
+                                  setDefPlays(prev => prev.map(x => x.id === editingPlay.play.id ? { ...editingPlay.play, yardsAllowed: Number(editingPlay.play.yardsAllowed) || 0 } : x));
+                                }
+                                setEditingPlay(null);
+                              }} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>Save</button>
+                              <button onClick={() => setEditingPlay(null)} style={{ padding: "7px 16px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* ── View mode ── */
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: p.side === "offense" ? "#dbeafe" : "#fee2e2", color: p.side === "offense" ? "#1e40af" : "#991b1b" }}>{p.side === "offense" ? "OFF" : "DEF"}</span>
+                                {p.outcome && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#f3f4f6", color: "#374151" }}>{p.outcome}</span>}
+                                {p.playType && <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: "#f3f4f6", color: "#6b7280" }}>{p.playType}</span>}
+                                {p.playCode && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#e8eef7", color: "#1a2f5e" }}>{p.playCode}</span>}
+                              </div>
+                              <div style={{ fontSize: 12, color: "#374151" }}>
+                                <span style={{ fontWeight: 700 }}>{p.game}</span> · Q{p.quarter} · {p.down}&{p.distance || "?"}
+                                {p.side === "offense" ? (<>
+                                  {thrower  && <span> · 🏈 {thrower.name}</span>}
+                                  {receiver && <span> · 🙌 {receiver.name}</span>}
+                                  {carrier  && <span> · 🏃 {carrier.name}</span>}
+                                  {p.yardsGained !== undefined && <span style={{ fontWeight: 700, color: p.yardsGained > 0 ? "#059669" : p.yardsGained < 0 ? "#dc2626" : "#6b7280" }}> · {p.yardsGained > 0 ? `+${p.yardsGained}` : p.yardsGained} yds</span>}
+                                </>) : (<>
+                                  {pl && <span> · {pl.name}</span>}
+                                  {p.yardsAllowed > 0 && <span style={{ color: "#dc2626", fontWeight: 700 }}> · {p.yardsAllowed} yds allowed</span>}
+                                </>)}
+                              </div>
+                              {p.notes && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>{p.notes}</div>}
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => setEditingPlay({ play: { ...p }, side: p.side })} style={{ border: "none", background: "#f3f4f6", color: "#374151", borderRadius: 7, padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600 }}>✏️ Edit</button>
+                              <button onClick={() => { if (window.confirm("Delete this play?")) { if (p.side === "offense") setPlays(prev => prev.filter(x => x.id !== p.id)); else setDefPlays(prev => prev.filter(x => x.id !== p.id)); }}} style={{ border: "none", background: "#fee2e2", color: "#991b1b", borderRadius: 7, padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600 }}>× Delete</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ───── ANALYTICS TAB ───── */}
         {tab === "Analytics" && (
