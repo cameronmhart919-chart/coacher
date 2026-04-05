@@ -205,7 +205,7 @@ const THEME = {
 };
 
 const PLAY_TYPES = ["Pass", "Run"];
-const DEFAULT_OUTCOMES = ["Reception - Gain", "Reception - Loss", "Incomplete", "Drop", "TD", "INT", "Run - Gain", "Run - Loss", "Throw Away", "Sack"];
+const DEFAULT_OUTCOMES = ["Reception - Gain", "Reception - Loss", "Incomplete", "Drop", "TD", "INT", "Run - Gain", "Run - Loss", "Throw Away", "Sack", "XP Converted - 1pt", "XP Converted - 2pt", "XP Converted - 3pt"];
 const DEFAULT_POSITIONS = ["QB", "WR"];
 
 const initialPlayers = [
