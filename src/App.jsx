@@ -221,7 +221,7 @@ const initialPlayers = [
   { id: 10, name: "Tate", position: "WR" },
 ];
 
-const TABS = ["Offensive Play Logger", "Defensive Play Logger", "Play Log", "Analytics", "Game Summary", "Report Cards", "Manage"];
+const TABS = ["Play Logger", "Play Log", "Analytics", "Game Summary", "Report Cards", "Manage"];
 const DEFAULT_DEF_OUTCOMES = ["Pass Breakup", "INT", "Pass Allowed", "Run - Gain", "Run - Loss", "Touchdown Allowed", "Sack"];
 
 const successOutcomes = new Set(["TD", "Reception - Gain", "Run - Gain"]);
@@ -275,7 +275,7 @@ export default function FootballCoach() {
   if (new URLSearchParams(window.location.search).get("share")) {
     return <SharedGameView />;
   }
-  const [tab, setTab] = useState("Offensive Play Logger");
+  const [tab, setTab] = useState("Play Logger");
   const [plays, setPlays] = useLocalStorage("coachlog_plays", []);
   const [games, setGames] = useLocalStorage("coachlog_games", ["Game 1", "Game 2", "Game 3", "Game 4", "Game 5", "Game 6", "Game 7", "Game 8"]);
   const [players, setPlayers] = useLocalStorage("coachlog_players", initialPlayers);
@@ -332,6 +332,7 @@ export default function FootballCoach() {
 
   // Analytics filter
   const [filterGame, setFilterGame] = useState("All");
+  const [analyticsSubTab, setAnalyticsSubTab] = useState("Offense");
 
   // Play Log filters & edit state
   const [logFilterGame, setLogFilterGame] = useState("All");
@@ -611,8 +612,21 @@ export default function FootballCoach() {
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px" }}>
 
-        {/* ───── LOG PLAY TAB ───── */}
-        {tab === "Offensive Play Logger" && (
+        {/* ───── PLAY LOGGER TAB ───── */}
+        {tab === "Play Logger" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* Sub-tab switcher */}
+            <div style={{ display: "flex", gap: 8 }}>
+              {["Offense", "Defense"].map(st => (
+                <button key={st} onClick={() => setAnalyticsSubTab(st)} style={{
+                  padding: "8px 22px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit",
+                  background: analyticsSubTab === st ? THEME.buttonBg : "#e5e7eb",
+                  color: analyticsSubTab === st ? "#fff" : "#374151",
+                }}>{st}</button>
+              ))}
+            </div>
+
+        {analyticsSubTab === "Offense" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
             {/* Form */}
             <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 28 }}>
@@ -762,8 +776,8 @@ export default function FootballCoach() {
           </div>
         )}
 
-        {/* ───── DEFENSIVE PLAY LOGGER TAB ───── */}
-        {tab === "Defensive Play Logger" && (
+        {/* ── Defensive sub-tab ── */}
+        {analyticsSubTab === "Defense" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
             {/* Form */}
             <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 28 }}>
@@ -874,6 +888,8 @@ export default function FootballCoach() {
                 </div>
               )}
             </div>
+          </div>
+        )}
           </div>
         )}
 
@@ -1055,18 +1071,30 @@ export default function FootballCoach() {
         {/* ───── ANALYTICS TAB ───── */}
         {tab === "Analytics" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            {/* Filter */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Filter by Game:</span>
-              <select style={{ ...inputStyle, width: "auto", minWidth: 160 }} value={filterGame} onChange={e => setFilterGame(e.target.value)}>
-                <option value="All">All Games</option>
-                {games.map(g => <option key={g}>{g}</option>)}
-              </select>
+            {/* Sub-tab switcher + game filter */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["Offense", "Defense"].map(st => (
+                  <button key={st} onClick={() => setAnalyticsSubTab(st)} style={{
+                    padding: "8px 22px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit",
+                    background: analyticsSubTab === st ? THEME.buttonBg : "#e5e7eb",
+                    color: analyticsSubTab === st ? "#fff" : "#374151",
+                  }}>{st}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Filter by Game:</span>
+                <select style={{ ...inputStyle, width: "auto", minWidth: 160 }} value={filterGame} onChange={e => setFilterGame(e.target.value)}>
+                  <option value="All">All Games</option>
+                  {games.map(g => <option key={g}>{g}</option>)}
+                </select>
+              </div>
             </div>
 
-            {!analytics ? (
+            {/* ── OFFENSE ── */}
+            {analyticsSubTab === "Offense" && (!analytics ? (
               <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 15 }}>
-                No plays logged yet. Head to <strong>Log Play</strong> to get started.
+                No plays logged yet. Head to <strong>Play Logger</strong> to get started.
               </div>
             ) : (
               <>
@@ -1100,14 +1128,14 @@ export default function FootballCoach() {
                     {Object.entries(analytics.byType).sort((a, b) => b[1].count - a[1].count).map(([type, data]) => {
                       const pct = Math.round(data.success / data.count * 100);
                       return (
-                        <div key={type} style={{ display: "grid", gridTemplateColumns: "120px 1fr 80px 80px 70px", gap: 12, alignItems: "center" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{type}</span>
-                          <div style={{ height: 10, background: "#f3f4f6", borderRadius: 99, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${pct}%`, background: pct >= 60 ? "#059669" : pct >= 40 ? "#d97706" : THEME.accent, borderRadius: 99, transition: "width 0.4s" }} />
+                        <div key={type}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                            <span style={{ fontWeight: 700, color: "#374151" }}>{type}</span>
+                            <span style={{ color: "#9ca3af" }}>{data.count} plays · {pct}% success · {(data.yards / data.count).toFixed(1)} yds/play</span>
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textAlign: "right" }}>{pct}% success</span>
-                          <span style={{ fontSize: 12, color: "#9ca3af", textAlign: "right" }}>{data.count} plays</span>
-                          <span style={{ fontSize: 12, color: THEME.accent, fontWeight: 700, textAlign: "right" }}>{(data.yards / data.count).toFixed(1)} yds/play</span>
+                          <div style={{ height: 10, background: "#f3f4f6", borderRadius: 99 }}>
+                            <div style={{ height: "100%", width: `${pct}%`, background: THEME.primary, borderRadius: 99 }} />
+                          </div>
                         </div>
                       );
                     })}
@@ -1118,12 +1146,12 @@ export default function FootballCoach() {
                 {Object.keys(analytics.byCode).length > 0 && (
                 <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24, overflowX: "auto" }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 4 }}>Stats by Play Code</div>
-                  <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>Att = Pass Attempts · Rec = Receptions · Rec+ / Rec- = Gain/Loss · Inc = Incompletions · T/A = Throw Aways</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>Att = Pass Attempts · Rec = Receptions · Cmp% = Completion % · TD% / INT% = per attempt · T/A = Throw Aways</div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: THEME.buttonBg }}>
                         {["Play Code","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","Runs","Run+","Run-","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h, i) => (
-                          <th key={h} style={{ padding: "9px 10px", textAlign: i < 2 ? "left" : "center", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
+                          <th key={h} style={{ padding: "9px 10px", textAlign: i < 1 ? "left" : "center", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1283,9 +1311,195 @@ export default function FootballCoach() {
                 </div>
                 )}
               </>
-            )}
+            ))}
+
+            {/* ── DEFENSE ── */}
+            {analyticsSubTab === "Defense" && (() => {
+              const fp = filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame);
+              if (!fp.length) return (
+                <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 15 }}>
+                  No defensive plays logged yet. Head to <strong>Play Logger</strong> to get started.
+                </div>
+              );
+
+              const totalPlays = fp.length;
+              const totalYardsAllowed = fp.reduce((a, b) => a + (Number(b.yardsAllowed) || 0), 0);
+              const countOutcome = (o) => fp.filter(p => (p.outcome || "").trim() === o).length;
+              const tdAllowed = countOutcome("Touchdown Allowed");
+              const sacks = countOutcome("Sack");
+              const ints = countOutcome("INT");
+              const passBreakups = countOutcome("Pass Breakup");
+              const passAllowed = countOutcome("Pass Allowed");
+              const runGain = countOutcome("Run - Gain");
+              const runLoss = countOutcome("Run - Loss");
+
+              // Play type breakdown
+              const passPlays = fp.filter(p => p.playType === "Pass");
+              const runPlays = fp.filter(p => p.playType === "Run");
+              const passYards = passPlays.reduce((a, b) => a + (Number(b.yardsAllowed) || 0), 0);
+              const runYards = runPlays.reduce((a, b) => a + (Number(b.yardsAllowed) || 0), 0);
+
+              // Stats by player
+              const byDPlayer = {};
+              fp.forEach(p => {
+                if (!p.player) return;
+                const pl = players.find(x => x.id === Number(p.player));
+                if (!pl) return;
+                if (!byDPlayer[p.player]) byDPlayer[p.player] = { name: pl.name, position: pl.position, plays: 0, yardsAllowed: 0, tdAllowed: 0, sacks: 0, ints: 0, passBreakups: 0, passAllowed: 0, runGain: 0, runLoss: 0 };
+                const s = byDPlayer[p.player];
+                const o = (p.outcome || "").trim();
+                s.plays++;
+                s.yardsAllowed += Number(p.yardsAllowed) || 0;
+                if (o === "Touchdown Allowed") s.tdAllowed++;
+                if (o === "Sack") s.sacks++;
+                if (o === "INT") s.ints++;
+                if (o === "Pass Breakup") s.passBreakups++;
+                if (o === "Pass Allowed") s.passAllowed++;
+                if (o === "Run - Gain") s.runGain++;
+                if (o === "Run - Loss") s.runLoss++;
+              });
+
+              // Stats by game
+              const byGame = {};
+              games.forEach(g => {
+                const gp = fp.filter(p => p.game === g);
+                if (!gp.length) return;
+                byGame[g] = {
+                  plays: gp.length,
+                  yardsAllowed: gp.reduce((a, b) => a + (Number(b.yardsAllowed) || 0), 0),
+                  tdAllowed: gp.filter(p => p.outcome === "Touchdown Allowed").length,
+                  sacks: gp.filter(p => p.outcome === "Sack").length,
+                  ints: gp.filter(p => p.outcome === "INT").length,
+                  passBreakups: gp.filter(p => p.outcome === "Pass Breakup").length,
+                  passAllowed: gp.filter(p => p.outcome === "Pass Allowed").length,
+                  runGain: gp.filter(p => p.outcome === "Run - Gain").length,
+                  runLoss: gp.filter(p => p.outcome === "Run - Loss").length,
+                };
+              });
+
+              const thStyle = { padding: "9px 10px", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" };
+
+              return (
+                <>
+                  {/* Overview cards */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                    <StatCard label="Total Plays" value={totalPlays} accent="#dc2626" />
+                    <StatCard label="Yards Allowed" value={totalYardsAllowed} sub={`${(totalYardsAllowed / totalPlays).toFixed(1)} yds/play`} accent="#f59e0b" />
+                    <StatCard label="TDs Allowed" value={tdAllowed} accent="#dc2626" />
+                    <StatCard label="Sacks / INTs" value={`${sacks} / ${ints}`} sub="Sacks & Interceptions" accent="#059669" />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                    <StatCard label="Pass Breakups" value={passBreakups} accent="#6366f1" />
+                    <StatCard label="Pass Allowed" value={passAllowed} accent="#f59e0b" />
+                    <StatCard label="Run - Gain" value={runGain} accent="#f59e0b" />
+                    <StatCard label="Run - Loss" value={runLoss} accent="#059669" />
+                  </div>
+
+                  {/* Play type breakdown */}
+                  <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 18 }}>Pass vs Run Allowed</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {[["Pass", passPlays.length, passYards], ["Run", runPlays.length, runYards]].map(([type, count, yards]) => {
+                        const pct = totalPlays > 0 ? Math.round(count / totalPlays * 100) : 0;
+                        return (
+                          <div key={type}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                              <span style={{ fontWeight: 700, color: "#374151" }}>{type}</span>
+                              <span style={{ color: "#9ca3af" }}>{count} plays · {count > 0 ? (yards / count).toFixed(1) : 0} yds/play · {pct}% of plays</span>
+                            </div>
+                            <div style={{ height: 10, background: "#f3f4f6", borderRadius: 99 }}>
+                              <div style={{ height: "100%", width: `${pct}%`, background: "#dc2626", borderRadius: 99 }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Stats by Player */}
+                  {Object.keys(byDPlayer).length > 0 && (
+                  <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24, overflowX: "auto" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Stats by Player</div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 800 }}>
+                      <thead>
+                        <tr style={{ background: "#dc2626" }}>
+                          {["Player","Pos","Plays","Yds Allowed","TD Allow","Sacks","INTs","Pass BU","Pass Allow","Run+","Run-"].map((h, i) => (
+                            <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.values(byDPlayer).sort((a, b) => a.name.localeCompare(b.name)).map((p, i) => (
+                          <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                            <td style={{ padding: "9px 10px", fontWeight: 700, color: "#111827" }}>{p.name}</td>
+                            <td style={{ padding: "9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{p.plays}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{p.yardsAllowed || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.tdAllowed > 0 ? <Badge color="red">{p.tdAllowed}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.sacks > 0 ? <Badge color="green">{p.sacks}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.ints > 0 ? <Badge color="green">{p.ints}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 600 }}>{p.passBreakups || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#f59e0b", fontWeight: 600 }}>{p.passAllowed || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{p.runGain || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{p.runLoss || "—"}</td>
+                          </tr>
+                        ))}
+                        {(() => {
+                          const rows = Object.values(byDPlayer);
+                          const t = { plays:0, yardsAllowed:0, tdAllowed:0, sacks:0, ints:0, passBreakups:0, passAllowed:0, runGain:0, runLoss:0 };
+                          rows.forEach(p => Object.keys(t).forEach(k => { t[k] += p[k] || 0; }));
+                          return (
+                            <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
+                              <td style={{ padding: "10px 10px", fontWeight: 900, color: "#111827", fontSize: 11 }}>TOTALS</td>
+                              <td></td>
+                              {[t.plays, t.yardsAllowed, t.tdAllowed, t.sacks, t.ints, t.passBreakups, t.passAllowed, t.runGain, t.runLoss].map((v, i) => (
+                                <td key={i} style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, color: "#111827" }}>{v || "—"}</td>
+                              ))}
+                            </tr>
+                          );
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
+
+                  {/* Stats by Game */}
+                  {Object.keys(byGame).length > 0 && (
+                  <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24, overflowX: "auto" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Stats by Game</div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: "#dc2626" }}>
+                          {["Game","Plays","Yds Allowed","TD Allow","Sacks","INTs","Pass BU","Pass Allow","Run+","Run-"].map((h, i) => (
+                            <th key={h} style={{ ...thStyle, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(byGame).map(([g, d], i) => (
+                          <tr key={g} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                            <td style={{ padding: "9px 10px", fontWeight: 700, color: "#111827" }}>{g}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{d.plays}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{d.yardsAllowed || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{d.tdAllowed > 0 ? <Badge color="red">{d.tdAllowed}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{d.sacks > 0 ? <Badge color="green">{d.sacks}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{d.ints > 0 ? <Badge color="green">{d.ints}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 600 }}>{d.passBreakups || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#f59e0b", fontWeight: 600 }}>{d.passAllowed || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{d.runGain || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{d.runLoss || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
+
 
         {/* ───── GAME SUMMARY TAB ───── */}
         {tab === "Game Summary" && (
@@ -1357,6 +1571,7 @@ export default function FootballCoach() {
                       ))}
                       {gPlays.length > 0 && <span style={{ color: "#a8b8c8", fontSize: 12 }}>{gPlays.length} plays</span>}
                       {gPlays.length > 0 && (
+                        <>
                         <button onClick={() => {
                           const payload = { game, score, plays: gPlays, players, tdOutcome };
                           const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
@@ -1365,6 +1580,44 @@ export default function FootballCoach() {
                         }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", background: "rgba(255,255,255,0.15)", color: "#fff" }}>
                           🔗 Share
                         </button>
+                        <button onClick={() => {
+                          const payload = { game, score, plays: gPlays, players, tdOutcome };
+                          // Build per-player stats inline for PDF
+                          const isPass = p => p.playType === "Pass";
+                          const TD = tdOutcome;
+                          const notComplete = ["Incomplete","Drop","Interception","INT","Throw Away","Sack"];
+                          const byP = {};
+                          const ep = (pid) => { if (!byP[pid]) { const pl = players.find(x => x.id === Number(pid)); if (!pl) return false; byP[pid] = { name: pl.name, position: pl.position, attempts:0,receptions:0,recGain:0,recLoss:0,incompletions:0,runs:0,runGain:0,runLoss:0,tds:0,ints:0,drops:0,throwAways:0,sacks:0,yards:0,isThrower:false,isReceiver:false,isRunner:false }; } return true; };
+                          gPlays.forEach(p => {
+                            const o = (p.outcome||"").trim(); const y = Number(p.yardsGained)||0;
+                            if (p.thrower && isPass(p) && ep(p.thrower)) { const s=byP[p.thrower]; s.isThrower=true; if(o!=="Throw Away"&&o!=="Sack")s.attempts++; if(o==="Interception"||o==="INT")s.ints++; if(o==="Throw Away")s.throwAways++; if(o==="Sack")s.sacks++; if(o==="Drop")s.drops++; if(o==="Incomplete")s.incompletions++; if(o===TD)s.tds++; if(!notComplete.includes(o)&&o!==""){s.receptions++;s.yards+=y;if(y>0||o===TD)s.recGain++;if(y<0)s.recLoss++;} }
+                            if (p.receiver && p.receiver!==p.thrower && isPass(p) && ep(p.receiver)) { const s=byP[p.receiver]; s.isReceiver=true; s.attempts++; if(o==="Incomplete")s.incompletions++; if(o==="Drop")s.drops++; if(o===TD)s.tds++; if(!notComplete.includes(o)&&o!==""){s.receptions++;s.yards+=y;if(y>0||o===TD)s.recGain++;if(y<0)s.recLoss++;} }
+                            if (p.carrier && !isPass(p) && ep(p.carrier)) { const s=byP[p.carrier]; s.isRunner=true; s.runs++; s.yards+=y; if(y>0||o===TD)s.runGain++; if(y<0)s.runLoss++; if(o===TD)s.tds++; }
+                          });
+                          const throwers = Object.values(byP).filter(p=>p.isThrower).sort((a,b)=>a.name.localeCompare(b.name));
+                          const recRun = Object.values(byP).filter(p=>(p.isReceiver||p.isRunner)&&!p.isThrower).sort((a,b)=>a.name.localeCompare(b.name));
+                          const totalYards = gPlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0);
+                          const tds = gPlays.filter(p=>p.outcome===TD).length;
+                          const resultColor = score.result==="W"?"#059669":score.result==="L"?"#dc2626":"#6b7280";
+                          const th = (t) => `<th style="padding:7px 10px;text-align:center;background:#1a2f5e;color:#fff;font-size:11px;text-transform:uppercase;white-space:nowrap">${t}</th>`;
+                          const td = (v, color="") => `<td style="padding:7px 10px;text-align:center;font-size:12px;${color?`color:${color};font-weight:700`:"color:#374151"}">${v||"—"}</td>`;
+                          const pct = (n,d) => d>0?`${Math.round(n/d*100)}%`:"—";
+                          const fpct = (n,d) => d>0?`${(n/d*100).toFixed(1)}%`:"—";
+                          const throwerRows = throwers.map(p=>`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:7px 10px;font-weight:700;font-size:12px">${p.name}</td><td style="padding:7px 10px;font-size:11px;color:#1a2f5e;font-weight:700">${p.position}</td>${td(p.attempts)}${td(p.receptions)}${td(pct(p.receptions,p.attempts),"#6366f1")}${td(fpct(p.tds,p.attempts),"#059669")}${td(fpct(p.ints,p.attempts),"#dc2626")}${td(p.recGain||"","#059669")}${td(p.recLoss||"","#dc2626")}${td(p.incompletions||"")}${td(p.tds||"")}${td(p.ints||"","#dc2626")}${td(p.drops||"")}${td(p.throwAways||"")}${td(p.sacks||"")}${td(p.yards?(p.yards>0?`+${p.yards}`:p.yards):"","#4a6fa5")}</tr>`).join("");
+                          const recRunRows = recRun.map(p=>`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:7px 10px;font-weight:700;font-size:12px">${p.name}</td><td style="padding:7px 10px;font-size:11px;color:#1a2f5e;font-weight:700">${p.position}</td>${td(p.attempts)}${td(p.receptions)}${td(pct(p.receptions,p.attempts),"#6366f1")}${td(fpct(p.tds,p.attempts),"#059669")}${td(p.recGain||"","#059669")}${td(p.recLoss||"","#dc2626")}${td(p.incompletions||"")}${td(p.drops||"")}${td(p.runs||"")}${td(p.runGain||"","#059669")}${td(p.runLoss||"","#dc2626")}${td(p.tds||"")}${td(p.yards?(p.yards>0?`+${p.yards}`:p.yards):"","#4a6fa5")}</tr>`).join("");
+                          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${game} Summary</title><style>*{font-family:'Helvetica Neue',sans-serif;margin:0;padding:0;box-sizing:border-box}body{background:#f4f6fa;padding:32px;color:#111827}h1{font-size:24px;font-weight:900}h2{font-size:15px;font-weight:800;margin-bottom:12px;color:#111827}.header{background:#111;border-radius:12px;padding:20px 28px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.overview{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}.card{background:#fff;border-radius:10px;border:1px solid #e5e7eb;padding:14px 18px}.card-label{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px}.card-value{font-size:26px;font-weight:900}.section{background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:18px;margin-bottom:16px;overflow-x:auto}table{width:100%;border-collapse:collapse}@media print{body{background:#fff;padding:16px}.header{-webkit-print-color-adjust:exact;print-color-adjust:exact}thead{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>
+                          <div class="header"><div><h1 style="color:#fff">${game}</h1><div style="color:#a8b8c8;font-size:13px;margin-top:4px">${gPlays.length} plays logged</div></div>${score.us!==""||score.them!==""?`<div style="text-align:right"><div style="font-size:28px;font-weight:900;color:#fff">${score.us} — ${score.them}</div>${score.result?`<div style="font-size:13px;font-weight:800;color:${resultColor}">${score.result==="W"?"WIN":score.result==="L"?"LOSS":"TIE"}</div>`:""}</div>`:""}</div>
+                          <div class="overview"><div class="card"><div class="card-label">Total Plays</div><div class="card-value">${gPlays.length}</div></div><div class="card"><div class="card-label">Total Yards</div><div class="card-value">${totalYards}</div></div><div class="card"><div class="card-label">Touchdowns</div><div class="card-value">${tds}</div></div></div>
+                          ${throwers.length>0?`<div class="section"><h2>Throwers</h2><table><thead><tr>${["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","Yards"].map(th).join("")}</tr></thead><tbody>${throwerRows}</tbody></table></div>`:""}
+                          ${recRun.length>0?`<div class="section"><h2>Receivers & Runners</h2><table><thead><tr>${["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","Yards"].map(th).join("")}</tr></thead><tbody>${recRunRows}</tbody></table></div>`:""}
+                          <script>window.onload=()=>window.print();</script></body></html>`;
+                          const w = window.open("", "_blank");
+                          w.document.write(html);
+                          w.document.close();
+                        }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+                          ⬇ PDF
+                        </button>
+                        </>
                       )}
                     </div>
                   </div>
