@@ -1483,11 +1483,11 @@ export default function FootballCoach() {
                   {Object.keys(byDPlayer).length > 0 && (
                   <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24, overflowX: "auto" }}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 4 }}>Stats by Player</div>
-                    <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>Outcomes = play-level results · Actions = individual player contributions</div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 900 }}>
+                    <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>Based on Player Action logged per play</div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead>
                         <tr style={{ background: "#dc2626" }}>
-                          {["Player","Pos","Plays","Yds Allow","TD Allow","Pass Inc","Pass+","Pass-","Run+","Run-","Sack-T","Sack-B","INT","PBU","Flag","INT (Act)","Sack (Act)"].map((h, i) => (
+                          {["Player","Pos","PBUs","Flags Pulled","INTs","Sacks"].map((h, i) => (
                             <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
                           ))}
                         </tr>
@@ -1497,17 +1497,6 @@ export default function FootballCoach() {
                           <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                             <td style={{ padding: "9px 10px", fontWeight: 700, color: "#111827" }}>{p.name}</td>
                             <td style={{ padding: "9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
-                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.plays}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{p.yardsAllowed || "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.tdAllowed > 0 ? <Badge color="red">{p.tdAllowed}</Badge> : "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 600 }}>{p.passIncomplete || "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{p.passGain || "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{p.passLoss || "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{p.runGain || "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{p.runLoss || "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.sackTime > 0 ? <Badge color="green">{p.sackTime}</Badge> : "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.sackBlitz > 0 ? <Badge color="green">{p.sackBlitz}</Badge> : "—"}</td>
-                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.intOutcome > 0 ? <Badge color="green">{p.intOutcome}</Badge> : "—"}</td>
                             <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 700 }}>{p.pbu || "—"}</td>
                             <td style={{ padding: "9px 10px", textAlign: "center", color: "#4a6fa5", fontWeight: 700 }}>{p.flagPull || "—"}</td>
                             <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.intAction > 0 ? <Badge color="green">{p.intAction}</Badge> : "—"}</td>
@@ -1516,13 +1505,13 @@ export default function FootballCoach() {
                         ))}
                         {(() => {
                           const rows = Object.values(byDPlayer);
-                          const t = { plays:0, yardsAllowed:0, tdAllowed:0, passIncomplete:0, passGain:0, passLoss:0, runGain:0, runLoss:0, sackTime:0, sackBlitz:0, intOutcome:0, pbu:0, flagPull:0, intAction:0, sackAction:0 };
+                          const t = { pbu:0, flagPull:0, intAction:0, sackAction:0 };
                           rows.forEach(p => Object.keys(t).forEach(k => { t[k] += p[k] || 0; }));
                           return (
                             <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
                               <td style={{ padding: "10px 10px", fontWeight: 900, color: "#111827", fontSize: 11 }}>TOTALS</td>
                               <td></td>
-                              {[t.plays, t.yardsAllowed, t.tdAllowed, t.passIncomplete, t.passGain, t.passLoss, t.runGain, t.runLoss, t.sackTime, t.sackBlitz, t.intOutcome, t.pbu, t.flagPull, t.intAction, t.sackAction].map((v, i) => (
+                              {[t.pbu, t.flagPull, t.intAction, t.sackAction].map((v, i) => (
                                 <td key={i} style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, color: "#111827" }}>{v || "—"}</td>
                               ))}
                             </tr>
