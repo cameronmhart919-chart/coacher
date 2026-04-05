@@ -1454,7 +1454,7 @@ export default function FootballCoach() {
         {tab === "Manage" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }}>
 
             {/* Games */}
             <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
