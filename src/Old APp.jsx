@@ -221,8 +221,7 @@ const initialPlayers = [
   { id: 10, name: "Tate", position: "WR" },
 ];
 
-const TABS = ["Offensive Play Logger", "Defensive Play Logger", "Analytics", "Game Summary", "Report Cards", "Manage"];
-const DEFAULT_DEF_OUTCOMES = ["Pass Breakup", "INT", "Pass Allowed", "Run - Gain", "Run - Loss", "Touchdown Allowed", "Sack"];
+const TABS = ["Log Play", "Analytics", "Game Summary", "Report Cards", "Manage"];
 
 const successOutcomes = new Set(["TD", "Reception - Gain", "Run - Gain"]);
 
@@ -275,7 +274,7 @@ export default function FootballCoach() {
   if (new URLSearchParams(window.location.search).get("share")) {
     return <SharedGameView />;
   }
-  const [tab, setTab] = useState("Offensive Play Logger");
+  const [tab, setTab] = useState("Log Play");
   const [plays, setPlays] = useLocalStorage("coachlog_plays", []);
   const [games, setGames] = useLocalStorage("coachlog_games", ["Game 1", "Game 2", "Game 3", "Game 4", "Game 5", "Game 6", "Game 7", "Game 8"]);
   const [players, setPlayers] = useLocalStorage("coachlog_players", initialPlayers);
@@ -292,12 +291,6 @@ export default function FootballCoach() {
   const [tdOutcome, setTdOutcome] = useLocalStorage("coachlog_tdoutcome", "TD");
   const [gameScores, setGameScores] = useLocalStorage("coachlog_gamescores", {}); // { gameName: { us, them, result } }
   const [coachNotes, setCoachNotes] = useLocalStorage("coachlog_coachnotes", {}); // { playerId: string }
-  const [defPlays, setDefPlays] = useLocalStorage("coachlog_defplays", []);
-  const [defOutcomes, setDefOutcomes] = useLocalStorage("coachlog_defoutcomes", DEFAULT_DEF_OUTCOMES);
-  const [defForm, setDefForm] = useState({
-    game: "Game 1", quarter: "1", down: "1", distance: "", playType: "", player: "", outcome: "", yardsAllowed: "", notes: "",
-  });
-  const df = (k, v) => setDefForm(p => ({ ...p, [k]: v }));
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [pendingImport, setPendingImport] = useState(null); // holds parsed backup data waiting for user choice
 
@@ -327,8 +320,6 @@ export default function FootballCoach() {
   const [editingPosition, setEditingPosition] = useState(null); // { index, value }
   const [newOutcome, setNewOutcome] = useState("");
   const [editingOutcome, setEditingOutcome] = useState(null); // { index, value }
-  const [newDefOutcome, setNewDefOutcome] = useState("");
-  const [editingDefOutcome, setEditingDefOutcome] = useState(null); // { index, value }
 
   // Analytics filter
   const [filterGame, setFilterGame] = useState("All");
@@ -605,7 +596,7 @@ export default function FootballCoach() {
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px" }}>
 
         {/* ───── LOG PLAY TAB ───── */}
-        {tab === "Offensive Play Logger" && (
+        {tab === "Log Play" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
             {/* Form */}
             <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 28 }}>
@@ -751,121 +742,6 @@ export default function FootballCoach() {
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* ───── DEFENSIVE PLAY LOGGER TAB ───── */}
-        {tab === "Defensive Play Logger" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
-            {/* Form */}
-            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 28 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", marginBottom: 22 }}>Log a Defensive Play</div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={labelStyle}>Game</label>
-                  <select style={inputStyle} value={defForm.game} onChange={e => df("game", e.target.value)}>
-                    {games.map(g => <option key={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Quarter</label>
-                  <select style={inputStyle} value={defForm.quarter} onChange={e => df("quarter", e.target.value)}>
-                    {["1","2","3","4","OT"].map(q => <option key={q}>{q}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Down</label>
-                  <select style={inputStyle} value={defForm.down} onChange={e => df("down", e.target.value)}>
-                    {["1","2","3","4"].map(d => <option key={d}>{d}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={labelStyle}>Distance (yards)</label>
-                  <input style={inputStyle} type="number" placeholder="e.g. 10" value={defForm.distance} onChange={e => df("distance", e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Play Type</label>
-                  <select style={inputStyle} value={defForm.playType} onChange={e => df("playType", e.target.value)}>
-                    <option value="">— Select —</option>
-                    <option>Pass</option>
-                    <option>Run</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={labelStyle}>Player Who Made the Play</label>
-                  <select style={inputStyle} value={defForm.player} onChange={e => df("player", e.target.value)}>
-                    <option value="">— None —</option>
-                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Outcome *</label>
-                  <select style={inputStyle} value={defForm.outcome} onChange={e => df("outcome", e.target.value)}>
-                    <option value="">— Select —</option>
-                    {defOutcomes.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14, marginBottom: 20 }}>
-                <div>
-                  <label style={labelStyle}>Yards Allowed</label>
-                  <input style={inputStyle} type="number" placeholder="0" value={defForm.yardsAllowed} onChange={e => df("yardsAllowed", e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Notes</label>
-                  <input style={inputStyle} placeholder="Optional notes..." value={defForm.notes} onChange={e => df("notes", e.target.value)} />
-                </div>
-              </div>
-
-              <button onClick={() => {
-                if (!defForm.outcome) return;
-                const play = { id: Date.now(), ...defForm, yardsAllowed: Number(defForm.yardsAllowed) || 0, timestamp: new Date().toISOString() };
-                setDefPlays(p => [play, ...p]);
-                setDefForm(prev => ({ ...prev, down: String(Math.min(4, Number(prev.down) + 1)), playType: "", player: "", outcome: "", yardsAllowed: "", notes: "" }));
-              }} style={{ width: "100%", padding: "13px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
-                + Log Defensive Play
-              </button>
-            </div>
-
-            {/* Recent plays panel */}
-            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Recent Plays</div>
-              {defPlays.length === 0 ? (
-                <div style={{ color: "#9ca3af", fontSize: 13, textAlign: "center", marginTop: 40 }}>No defensive plays logged yet.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {defPlays.slice(0, 10).map(p => {
-                    const pl = players.find(x => x.id === Number(p.player));
-                    return (
-                      <div key={p.id} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, background: "#fee2e2", color: "#991b1b", padding: "2px 8px", borderRadius: 999 }}>{p.outcome}</span>
-                            {p.playType && <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 999 }}>{p.playType}</span>}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#374151" }}>
-                            {p.game} · Q{p.quarter} · {p.down}&{p.distance}
-                            {pl && <span style={{ fontWeight: 700 }}> · {pl.name}</span>}
-                            {p.yardsAllowed > 0 && <span style={{ color: "#dc2626" }}> · {p.yardsAllowed} yds allowed</span>}
-                          </div>
-                          {p.notes && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{p.notes}</div>}
-                        </div>
-                        <button onClick={() => setDefPlays(prev => prev.filter(x => x.id !== p.id))}
-                          style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 16, fontFamily: "inherit", padding: "0 2px" }}>×</button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1454,7 +1330,7 @@ export default function FootballCoach() {
         {tab === "Manage" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 24 }}>
 
             {/* Games */}
             <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
@@ -1623,9 +1499,9 @@ export default function FootballCoach() {
               </div>
             </div>
 
-            {/* Offensive Outcomes */}
+            {/* Outcomes */}
             <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Offensive Outcomes</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Outcomes</div>
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                 <input style={{ ...inputStyle, flex: 1 }} placeholder="e.g. Sack, Safety" value={newOutcome}
                   onChange={e => setNewOutcome(e.target.value)}
@@ -1642,54 +1518,27 @@ export default function FootballCoach() {
                           value={editingOutcome.value}
                           onChange={e => setEditingOutcome(eo => ({ ...eo, value: e.target.value }))}
                           onKeyDown={e => {
-                            if (e.key === "Enter") { const val = editingOutcome.value.trim(); if (val) setOutcomes(os => os.map((x, j) => j === i ? val : x)); setEditingOutcome(null); }
+                            if (e.key === "Enter") {
+                              const val = editingOutcome.value.trim();
+                              if (val) setOutcomes(os => os.map((x, j) => j === i ? val : x));
+                              setEditingOutcome(null);
+                            }
                             if (e.key === "Escape") setEditingOutcome(null);
                           }} />
-                        <button onClick={() => { const val = editingOutcome.value.trim(); if (val) setOutcomes(os => os.map((x, j) => j === i ? val : x)); setEditingOutcome(null); }} style={{ border: "none", background: "#d1fae5", color: "#065f46", borderRadius: 6, padding: "3px 8px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>Save</button>
+                        <button onClick={() => {
+                          const val = editingOutcome.value.trim();
+                          if (val) setOutcomes(os => os.map((x, j) => j === i ? val : x));
+                          setEditingOutcome(null);
+                        }} style={{ border: "none", background: "#d1fae5", color: "#065f46", borderRadius: 6, padding: "3px 8px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>Save</button>
                         <button onClick={() => setEditingOutcome(null)} style={{ border: "none", background: "none", color: "#9ca3af", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
                       </>
                     ) : (
                       <>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", flex: 1 }}>{o}</span>
                         <button onClick={() => setEditingOutcome({ index: i, value: o })} style={{ border: "none", background: "none", color: "#6b7280", cursor: "pointer", fontSize: 13, padding: "0 2px" }} title="Rename">✏️</button>
-                        <button onClick={() => { if (window.confirm(`Delete outcome "${o}"?`)) setOutcomes(os => os.filter((_, j) => j !== i)); }} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Defensive Outcomes */}
-            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 16 }}>Defensive Outcomes</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <input style={{ ...inputStyle, flex: 1 }} placeholder="e.g. Fumble Recovery, Safety" value={newDefOutcome}
-                  onChange={e => setNewDefOutcome(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && newDefOutcome.trim()) { setDefOutcomes(o => [...o, newDefOutcome.trim()]); setNewDefOutcome(""); }}} />
-                <button onClick={() => { if (newDefOutcome.trim()) { setDefOutcomes(o => [...o, newDefOutcome.trim()]); setNewDefOutcome(""); } }}
-                  style={{ padding: "9px 14px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>Add</button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
-                {defOutcomes.map((o, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", background: "#f8fafc", borderRadius: 8 }}>
-                    {editingDefOutcome?.index === i ? (
-                      <>
-                        <input autoFocus style={{ ...inputStyle, flex: 1, padding: "4px 8px", fontSize: 13 }}
-                          value={editingDefOutcome.value}
-                          onChange={e => setEditingDefOutcome(eo => ({ ...eo, value: e.target.value }))}
-                          onKeyDown={e => {
-                            if (e.key === "Enter") { const val = editingDefOutcome.value.trim(); if (val) setDefOutcomes(os => os.map((x, j) => j === i ? val : x)); setEditingDefOutcome(null); }
-                            if (e.key === "Escape") setEditingDefOutcome(null);
-                          }} />
-                        <button onClick={() => { const val = editingDefOutcome.value.trim(); if (val) setDefOutcomes(os => os.map((x, j) => j === i ? val : x)); setEditingDefOutcome(null); }} style={{ border: "none", background: "#d1fae5", color: "#065f46", borderRadius: 6, padding: "3px 8px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>Save</button>
-                        <button onClick={() => setEditingDefOutcome(null)} style={{ border: "none", background: "none", color: "#9ca3af", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", flex: 1 }}>{o}</span>
-                        <button onClick={() => setEditingDefOutcome({ index: i, value: o })} style={{ border: "none", background: "none", color: "#6b7280", cursor: "pointer", fontSize: 13, padding: "0 2px" }} title="Rename">✏️</button>
-                        <button onClick={() => { if (window.confirm(`Delete outcome "${o}"?`)) setDefOutcomes(os => os.filter((_, j) => j !== i)); }} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
+                        <button onClick={() => {
+                          if (window.confirm(`Delete outcome "${o}"?`)) setOutcomes(os => os.filter((_, j) => j !== i));
+                        }} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 15, padding: 0 }}>×</button>
                       </>
                     )}
                   </div>
@@ -1713,7 +1562,7 @@ export default function FootballCoach() {
                 </select>
               </div>
               <button onClick={() => {
-                const data = { plays, games, players, playCodes, defPlays, defOutcomes, exported: new Date().toISOString() };
+                const data = { plays, games, players, playCodes, exported: new Date().toISOString() };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a"); a.href = url; a.download = "coachlog-backup.json"; a.click();
@@ -1751,12 +1600,10 @@ export default function FootballCoach() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <button onClick={() => {
-                        if (pendingImport.plays)       setPlays(pendingImport.plays);
-                        if (pendingImport.games)       setGames(pendingImport.games);
-                        if (pendingImport.players)     setPlayers(pendingImport.players);
-                        if (pendingImport.playCodes)   setPlayCodes(pendingImport.playCodes);
-                        if (pendingImport.defPlays)    setDefPlays(pendingImport.defPlays);
-                        if (pendingImport.defOutcomes) setDefOutcomes(pendingImport.defOutcomes);
+                        if (pendingImport.plays)     setPlays(pendingImport.plays);
+                        if (pendingImport.games)     setGames(pendingImport.games);
+                        if (pendingImport.players)   setPlayers(pendingImport.players);
+                        if (pendingImport.playCodes) setPlayCodes(pendingImport.playCodes);
                         setPendingImport(null);
                         alert("Import successful! All data replaced.");
                       }} style={{ padding: "12px 18px", background: THEME.buttonBg, color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
@@ -1766,14 +1613,11 @@ export default function FootballCoach() {
                       <button onClick={() => {
                         const existingIds = new Set(plays.map(p => p.id));
                         const newPlays = pendingImport.plays.filter(p => !existingIds.has(p.id));
-                        const existingDefIds = new Set(defPlays.map(p => p.id));
-                        const newDefPlays = (pendingImport.defPlays || []).filter(p => !existingDefIds.has(p.id));
-                        if (newPlays.length === 0 && newDefPlays.length === 0) {
+                        if (newPlays.length === 0) {
                           alert("No new plays found — all plays in the backup already exist.");
                         } else {
-                          if (newPlays.length > 0) setPlays(prev => [...prev, ...newPlays]);
-                          if (newDefPlays.length > 0) setDefPlays(prev => [...prev, ...newDefPlays]);
-                          alert(`Added ${newPlays.length} offensive and ${newDefPlays.length} defensive play${newPlays.length + newDefPlays.length !== 1 ? "s" : ""} from backup.`);
+                          setPlays(prev => [...prev, ...newPlays]);
+                          alert(`Added ${newPlays.length} new play${newPlays.length !== 1 ? "s" : ""} from backup.`);
                         }
                         setPendingImport(null);
                       }} style={{ padding: "12px 18px", background: "#e0f2fe", color: "#0369a1", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 14, textAlign: "left" }}>
