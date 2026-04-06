@@ -24,7 +24,8 @@ function SharedGameView() {
     if (!byPlayer[pid]) {
       const pl = players.find(x => x.id === Number(pid));
       if (!pl) return false;
-      byPlayer[pid] = { name: pl.name, position: pl.position, attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, runs: 0, runGain: 0, runLoss: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0, isThrower: false, isReceiver: false, isRunner: false };
+      byPlayer[pid] = { name: pl.name, position: pl.position, attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0, isThrower: false, isReceiver: false, isRunner: false,
+        recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0 } };
     }
     return true;
   };
@@ -44,16 +45,20 @@ function SharedGameView() {
       if (!notComplete.includes(o) && o !== "") { s.receptions++; s.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) s.recGain++; if ((Number(p.yardsGained)||0) < 0) s.recLoss++; }
     }
     if (p.receiver && p.receiver !== p.thrower && isPassPlay(p) && ensureP(p.receiver)) {
-      const s = byPlayer[p.receiver]; s.isReceiver = true; s.attempts++;
-      if (o === "Incomplete") s.incompletions++;
-      if (o === "Drop") s.drops++;
-      if (o === TD) s.tds++;
-      if (!notComplete.includes(o) && o !== "") { s.receptions++; s.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) s.recGain++; if ((Number(p.yardsGained)||0) < 0) s.recLoss++; }
+      byPlayer[p.receiver].isReceiver = true;
+      const r = byPlayer[p.receiver].recRunStats; r.attempts++;
+      if (o === "Incomplete") r.incompletions++;
+      if (o === "Drop") r.drops++;
+      if (o === TD) r.tds++;
+      if (!notComplete.includes(o) && o !== "") { r.receptions++; r.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) r.recGain++; if ((Number(p.yardsGained)||0) < 0) r.recLoss++; }
     }
     if (p.carrier && !isPassPlay(p) && ensureP(p.carrier)) {
-      const s = byPlayer[p.carrier]; s.isRunner = true; s.runs++; s.yards += Number(p.yardsGained)||0;
-      if ((Number(p.yardsGained)||0) > 0 || o === TD) s.runGain++; if ((Number(p.yardsGained)||0) < 0) s.runLoss++;
-      if (o === TD) s.tds++;
+      byPlayer[p.carrier].isRunner = true;
+      const r = byPlayer[p.carrier].recRunStats;
+      r.runs++; r.yards += Number(p.yardsGained)||0;
+      if ((Number(p.yardsGained)||0) > 0 || o === TD) r.runGain++;
+      if ((Number(p.yardsGained)||0) < 0) r.runLoss++;
+      if (o === TD) r.tds++;
     }
   });
 
@@ -217,25 +222,28 @@ function SharedGameView() {
                   ))}
                 </tr></thead>
                 <tbody>
-                  {recRunners.map((p, i) => (
+                  {recRunners.map((p, i) => {
+                    const r = p.recRunStats;
+                    return (
                     <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
                       <td style={{ padding:"7px 10px", fontWeight:700, color:"#111827", fontSize:11 }}>{p.name}</td>
                       <td style={{ padding:"7px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"1px 6px", borderRadius:999, fontSize:10, fontWeight:700 }}>{p.position}</span></td>
-                      <td style={tdStyle()}>{p.attempts||"—"}</td>
-                      <td style={tdStyle()}>{p.receptions||"—"}</td>
-                      <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
-                      <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
-                      <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
-                      <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
-                      <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
-                      <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
-                      <td style={tdStyle()}>{p.runs||"—"}</td>
-                      <td style={tdStyle("#059669")}>{p.runGain||"—"}</td>
-                      <td style={tdStyle("#dc2626")}>{p.runLoss||"—"}</td>
-                      <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
-                      <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
+                      <td style={tdStyle()}>{r.attempts||"—"}</td>
+                      <td style={tdStyle()}>{r.receptions||"—"}</td>
+                      <td style={tdStyle("#6366f1")}>{r.attempts>0?`${Math.round(r.receptions/r.attempts*100)}%`:"—"}</td>
+                      <td style={tdStyle("#059669")}>{r.attempts>0?`${(r.tds/r.attempts*100).toFixed(1)}%`:"—"}</td>
+                      <td style={tdStyle("#059669")}>{r.recGain||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{r.recLoss||"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{r.incompletions||"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{r.drops||"—"}</td>
+                      <td style={tdStyle()}>{r.runs||"—"}</td>
+                      <td style={tdStyle("#059669")}>{r.runGain||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{r.runLoss||"—"}</td>
+                      <td style={tdStyle()}>{r.tds>0?r.tds:"—"}</td>
+                      <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{r.yards>0?`+${r.yards}`:r.yards||"—"}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
