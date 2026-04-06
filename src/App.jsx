@@ -25,7 +25,7 @@ function SharedGameView() {
       const pl = players.find(x => x.id === Number(pid));
       if (!pl) return false;
       byPlayer[pid] = { name: pl.name, position: pl.position, attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0, xp1: 0, xp2: 0, xp3: 0, isThrower: false, isReceiver: false, isRunner: false,
-        recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0, xp1:0, xp2:0, xp3:0 } };
+        recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0, xp1:0, xp2:0, xp3:0, xpm1:0, xpm2:0, xpm3:0 } };
     }
     return true;
   };
@@ -57,6 +57,9 @@ function SharedGameView() {
       if (o === "XP Converted - 1pt") { r.xp1++; r.recGain++; r.receptions++; r.yards += Number(p.yardsGained)||0; }
       if (o === "XP Converted - 2pt") { r.xp2++; r.recGain++; r.receptions++; r.yards += Number(p.yardsGained)||0; }
       if (o === "XP Converted - 3pt") { r.xp3++; r.recGain++; r.receptions++; r.yards += Number(p.yardsGained)||0; }
+      if (o === "XP Missed - 1pt") r.xpm1++;
+      if (o === "XP Missed - 2pt") r.xpm2++;
+      if (o === "XP Missed - 3pt") r.xpm3++;
       if (!notComplete.includes(o) && o !== "") { r.receptions++; r.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) r.recGain++; if ((Number(p.yardsGained)||0) < 0) r.recLoss++; }
     }
     if (p.carrier && !isPassPlay(p) && ensureP(p.carrier)) {
@@ -622,7 +625,7 @@ export default function FootballCoach() {
           isThrower: false, isReceiver: false, isRunner: false,
           xp1: 0, xp2: 0, xp3: 0,
           // Separate bucket for receiver/runner stats only (so QB throwing stats don't bleed in)
-          recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0, xp1:0, xp2:0, xp3:0 },
+          recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0, xp1:0, xp2:0, xp3:0, xpm1:0, xpm2:0, xpm3:0 },
         };
       }
       return true;
@@ -646,6 +649,9 @@ export default function FootballCoach() {
         if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
         if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
         if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
+        if (o === "XP Missed - 1pt") s.xpm1++;
+        if (o === "XP Missed - 2pt") s.xpm2++;
+        if (o === "XP Missed - 3pt") s.xpm3++;
         if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
@@ -666,6 +672,9 @@ export default function FootballCoach() {
         if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
         if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
         if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
+        if (o === "XP Missed - 1pt") s.xpm1++;
+        if (o === "XP Missed - 2pt") s.xpm2++;
+        if (o === "XP Missed - 3pt") s.xpm3++;
         if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
@@ -712,7 +721,7 @@ export default function FootballCoach() {
     const emptyStats = () => ({
       attempts: 0, receptions: 0, recGain: 0, recLoss: 0,
       incompletions: 0, runs: 0, runGain: 0, runLoss: 0,
-      tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0,
+      tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, xp1: 0, xp2: 0, xp3: 0, xpm1: 0, xpm2: 0, xpm3: 0, yards: 0,
     });
 
     const byCode = {};
@@ -723,6 +732,7 @@ export default function FootballCoach() {
         byCode[p.playCode] = { code: p.playCode, ...emptyStats() };
       }
       const s = byCode[p.playCode];
+      const xpOuts = ["XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"];
       if (isPassPlay(p)) {
         if (o !== "Throw Away" && o !== "Sack") s.attempts++;
         if (o === "Interception" || o === "INT")  s.ints++;
@@ -730,7 +740,13 @@ export default function FootballCoach() {
         if (o === "Sack")          s.sacks++;
         if (o === "Drop")          s.drops++;
         if (o === "Incomplete")    s.incompletions++;
-        if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
+        if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; }
+        if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; }
+        if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; }
+        if (o === "XP Missed - 1pt") s.xpm1++;
+        if (o === "XP Missed - 2pt") s.xpm2++;
+        if (o === "XP Missed - 3pt") s.xpm3++;
+        if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack",...xpOuts].includes(o) && o !== "") {
           s.receptions++;
           if (p.yardsGained > 0 || o === TD) s.recGain++;
           if (p.yardsGained < 0) s.recLoss++;
@@ -1365,7 +1381,7 @@ export default function FootballCoach() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: THEME.buttonBg }}>
-                        {["Play Code","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","Runs","Run+","Run-","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h, i) => (
+                        {["Play Code","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","Runs","Run+","Run-","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","XP-M1","XP-M2","XP-M3","Yards"].map((h, i) => (
                           <th key={h} style={{ padding: "9px 10px", textAlign: i < 1 ? "left" : "center", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -1390,6 +1406,12 @@ export default function FootballCoach() {
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#6b7280" }}>{s.drops || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#6b7280" }}>{s.throwAways || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center" }}>{s.sacks > 0 ? <Badge color="yellow">{s.sacks}</Badge> : "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{s.xp1 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{s.xp2 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{s.xp3 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{s.xpm1 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{s.xpm2 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{s.xpm3 || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", fontWeight: 700, color: THEME.primary }}>{s.yards > 0 ? `+${s.yards}` : s.yards}</td>
                         </tr>
                       ))}
@@ -1400,7 +1422,7 @@ export default function FootballCoach() {
                           const cmpPct = ct.attempts > 0 ? `${Math.round(ct.receptions / ct.attempts * 100)}%` : "—";
                           const tdPct  = ct.attempts > 0 ? `${(ct.tds / ct.attempts * 100).toFixed(1)}%` : "—";
                           const intPct = ct.attempts > 0 ? `${(ct.ints / ct.attempts * 100).toFixed(1)}%` : "—";
-                          return [ct.attempts, ct.receptions, cmpPct, tdPct, intPct, ct.recGain, ct.recLoss, ct.incompletions, ct.runs, ct.runGain, ct.runLoss, ct.tds, ct.ints, ct.drops, ct.throwAways, ct.sacks, ct.yards].map((v, i) => (
+                          return [ct.attempts, ct.receptions, cmpPct, tdPct, intPct, ct.recGain, ct.recLoss, ct.incompletions, ct.runs, ct.runGain, ct.runLoss, ct.tds, ct.ints, ct.drops, ct.throwAways, ct.sacks, ct.xp1, ct.xp2, ct.xp3, ct.xpm1, ct.xpm2, ct.xpm3, ct.yards].map((v, i) => (
                             <td key={i} style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, color: "#111827" }}>{v || "—"}</td>
                           ));
                         })()}
@@ -1418,7 +1440,7 @@ export default function FootballCoach() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 700 }}>
                     <thead>
                       <tr style={{ background: THEME.buttonBg }}>
-                        {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","Yards"].map((h, i) => (
+                        {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","XP-M1","XP-M2","XP-M3","Yards"].map((h, i) => (
                           <th key={h} style={{ padding: "9px 10px", textAlign: i < 2 ? "left" : "center", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -1447,6 +1469,9 @@ export default function FootballCoach() {
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{p.xp1 || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{p.xp2 || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{p.xp3 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{p.xpm1 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{p.xpm2 || "—"}</td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{p.xpm3 || "—"}</td>
                           <td style={{ padding: "9px 10px", textAlign: "center", fontWeight: 700, color: THEME.primary }}>{p.yards > 0 ? `+${p.yards}` : p.yards || "—"}</td>
                         </tr>
                       ))}
@@ -1461,7 +1486,7 @@ export default function FootballCoach() {
                           <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
                             <td style={{ padding: "10px 10px", fontWeight: 900, color: "#111827", fontSize: 11, letterSpacing: 0.5 }}>TOTALS</td>
                             <td></td>
-                            {[t.attempts, t.receptions, cmpPct, tdPct, intPct, t.recGain, t.recLoss, t.incompletions, t.tds, t.ints, t.drops, t.throwAways, t.sacks, t.xp1, t.xp2, t.xp3, t.yards].map((v, i) => (
+                            {[t.attempts, t.receptions, cmpPct, tdPct, intPct, t.recGain, t.recLoss, t.incompletions, t.tds, t.ints, t.drops, t.throwAways, t.sacks, t.xp1, t.xp2, t.xp3, t.xpm1, t.xpm2, t.xpm3, t.yards].map((v, i) => (
                               <td key={i} style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, color: "#111827" }}>{v || "—"}</td>
                             ))}
                           </tr>
@@ -1480,7 +1505,7 @@ export default function FootballCoach() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 800 }}>
                     <thead>
                       <tr style={{ background: THEME.buttonBg }}>
-                        {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h, i) => (
+                        {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","XP-M1","XP-M2","XP-M3","Yards"].map((h, i) => (
                           <th key={h} style={{ padding: "9px 10px", textAlign: i < 2 ? "left" : "center", fontWeight: 700, color: "#fff", fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -1510,6 +1535,9 @@ export default function FootballCoach() {
                             <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{r.xp1 || "—"}</td>
                             <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{r.xp2 || "—"}</td>
                             <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{r.xp3 || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{r.xpm1 || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{r.xpm2 || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 700 }}>{r.xpm3 || "—"}</td>
                             <td style={{ padding: "9px 10px", textAlign: "center", fontWeight: 700, color: THEME.primary }}>{r.yards > 0 ? `+${r.yards}` : r.yards || "—"}</td>
                           </tr>
                           );
@@ -1524,7 +1552,7 @@ export default function FootballCoach() {
                           <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
                             <td style={{ padding: "10px 10px", fontWeight: 900, color: "#111827", fontSize: 11, letterSpacing: 0.5 }}>TOTALS</td>
                             <td></td>
-                            {[t.attempts, t.receptions, cmpPct, tdPct, t.recGain, t.recLoss, t.incompletions, t.drops, t.runs, t.runGain, t.runLoss, t.tds, t.xp1, t.xp2, t.xp3, t.yards].map((v, i) => (
+                            {[t.attempts, t.receptions, cmpPct, tdPct, t.recGain, t.recLoss, t.incompletions, t.drops, t.runs, t.runGain, t.runLoss, t.tds, t.xp1, t.xp2, t.xp3, t.xpm1, t.xpm2, t.xpm3, t.yards].map((v, i) => (
                               <td key={i} style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, color: "#111827" }}>{v || "—"}</td>
                             ))}
                           </tr>
@@ -2116,6 +2144,7 @@ export default function FootballCoach() {
               const stats = { attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, runs: 0, runGain: 0, runLoss: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0 };
               plPlays.forEach(p => {
                 const o = (p.outcome || "").trim();
+                const xpOuts = ["XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"];
                 if (p.thrower === String(pl.id) && isPassPlay(p)) {
                   if (o !== "Throw Away" && o !== "Sack") stats.attempts++;
                   if (o === "Interception" || o === "INT") stats.ints++;
@@ -2124,7 +2153,11 @@ export default function FootballCoach() {
                   if (o === "Drop") stats.drops++;
                   if (o === "Incomplete") stats.incompletions++;
                   if (o === tdOutcome) stats.tds++;
-                  if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
+                  if (xpOuts.includes(o)) { stats.receptions++; stats.recGain++; stats.yards += p.yardsGained; }
+                  if (o === "XP Missed - 1pt") stats.xpm1 = (stats.xpm1||0)+1;
+                  if (o === "XP Missed - 2pt") stats.xpm2 = (stats.xpm2||0)+1;
+                  if (o === "XP Missed - 3pt") stats.xpm3 = (stats.xpm3||0)+1;
+                  if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack",...xpOuts].includes(o) && o !== "") {
                     stats.receptions++;
                     stats.yards += p.yardsGained;
                     if (p.yardsGained > 0 || o === tdOutcome) stats.recGain++;
@@ -2136,7 +2169,8 @@ export default function FootballCoach() {
                   if (o === "Incomplete") stats.incompletions++;
                   if (o === "Drop") stats.drops++;
                   if (o === tdOutcome) stats.tds++;
-                  if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
+                  if (xpOuts.includes(o)) { stats.receptions++; stats.recGain++; stats.yards += p.yardsGained; }
+                  if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack",...xpOuts].includes(o) && o !== "") {
                     stats.receptions++;
                     stats.yards += p.yardsGained;
                     if (p.yardsGained > 0 || o === tdOutcome) stats.recGain++;
