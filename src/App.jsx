@@ -192,7 +192,7 @@ function SharedGameView() {
               <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Throwers</div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead><tr style={{ background: "#1a2f5e" }}>
-                  {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h,i) => (
+                  {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","XP-M1","XP-M2","XP-M3","Yards"].map((h,i) => (
                     <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
                   ))}
                 </tr></thead>
@@ -214,6 +214,12 @@ function SharedGameView() {
                       <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
                       <td style={tdStyle("#6b7280")}>{p.throwAways||"—"}</td>
                       <td style={tdStyle()}>{p.sacks||"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.xp1||"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.xp2||"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.xp3||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.xpm1||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.xpm2||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.xpm3||"—"}</td>
                       <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
                     </tr>
                   ))}
@@ -227,7 +233,7 @@ function SharedGameView() {
               <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Receivers & Runners</div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead><tr style={{ background: "#1a2f5e" }}>
-                  {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","Yards"].map((h,i) => (
+                  {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","XP-M1","XP-M2","XP-M3","Yards"].map((h,i) => (
                     <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
                   ))}
                 </tr></thead>
@@ -250,6 +256,12 @@ function SharedGameView() {
                       <td style={tdStyle("#059669")}>{r.runGain||"—"}</td>
                       <td style={tdStyle("#dc2626")}>{r.runLoss||"—"}</td>
                       <td style={tdStyle()}>{r.tds>0?r.tds:"—"}</td>
+                      <td style={tdStyle("#059669")}>{r.xp1||"—"}</td>
+                      <td style={tdStyle("#059669")}>{r.xp2||"—"}</td>
+                      <td style={tdStyle("#059669")}>{r.xp3||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{r.xpm1||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{r.xpm2||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{r.xpm3||"—"}</td>
                       <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{r.yards>0?`+${r.yards}`:r.yards||"—"}</td>
                     </tr>
                     );
