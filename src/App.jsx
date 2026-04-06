@@ -24,15 +24,16 @@ function SharedGameView() {
     if (!byPlayer[pid]) {
       const pl = players.find(x => x.id === Number(pid));
       if (!pl) return false;
-      byPlayer[pid] = { name: pl.name, position: pl.position, attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0, isThrower: false, isReceiver: false, isRunner: false,
-        recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0 } };
+      byPlayer[pid] = { name: pl.name, position: pl.position, attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, tds: 0, ints: 0, drops: 0, throwAways: 0, sacks: 0, yards: 0, xp1: 0, xp2: 0, xp3: 0, isThrower: false, isReceiver: false, isRunner: false,
+        recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0, xp1:0, xp2:0, xp3:0 } };
     }
     return true;
   };
   plays.forEach(p => {
     const o = (p.outcome || "").trim();
     const TD = tdOutcome;
-    const notComplete = ["Incomplete","Drop","Interception","INT","Throw Away","Sack"];
+    const xpOuts = ["XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"];
+    const notComplete = ["Incomplete","Drop","Interception","INT","Throw Away","Sack",...xpOuts];
     if (p.thrower && isPassPlay(p) && ensureP(p.thrower)) {
       const s = byPlayer[p.thrower]; s.isThrower = true;
       if (o !== "Throw Away" && o !== "Sack") s.attempts++;
@@ -42,6 +43,9 @@ function SharedGameView() {
       if (o === "Drop") s.drops++;
       if (o === "Incomplete") s.incompletions++;
       if (o === TD) s.tds++;
+      if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; s.yards += Number(p.yardsGained)||0; }
+      if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; s.yards += Number(p.yardsGained)||0; }
+      if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; s.yards += Number(p.yardsGained)||0; }
       if (!notComplete.includes(o) && o !== "") { s.receptions++; s.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) s.recGain++; if ((Number(p.yardsGained)||0) < 0) s.recLoss++; }
     }
     if (p.receiver && p.receiver !== p.thrower && isPassPlay(p) && ensureP(p.receiver)) {
@@ -50,6 +54,9 @@ function SharedGameView() {
       if (o === "Incomplete") r.incompletions++;
       if (o === "Drop") r.drops++;
       if (o === TD) r.tds++;
+      if (o === "XP Converted - 1pt") { r.xp1++; r.recGain++; r.receptions++; r.yards += Number(p.yardsGained)||0; }
+      if (o === "XP Converted - 2pt") { r.xp2++; r.recGain++; r.receptions++; r.yards += Number(p.yardsGained)||0; }
+      if (o === "XP Converted - 3pt") { r.xp3++; r.recGain++; r.receptions++; r.yards += Number(p.yardsGained)||0; }
       if (!notComplete.includes(o) && o !== "") { r.receptions++; r.yards += Number(p.yardsGained)||0; if ((Number(p.yardsGained)||0) > 0 || o === TD) r.recGain++; if ((Number(p.yardsGained)||0) < 0) r.recLoss++; }
     }
     if (p.carrier && !isPassPlay(p) && ensureP(p.carrier)) {
@@ -392,7 +399,7 @@ const THEME = {
 };
 
 const PLAY_TYPES = ["Pass", "Run"];
-const DEFAULT_OUTCOMES = ["Reception - Gain", "Reception - Loss", "Incomplete", "Drop", "TD", "INT", "Run - Gain", "Run - Loss", "Throw Away", "Sack", "XP Converted - 1pt", "XP Converted - 2pt", "XP Converted - 3pt"];
+const DEFAULT_OUTCOMES = ["Reception - Gain", "Reception - Loss", "Incomplete", "Drop", "TD", "INT", "Run - Gain", "Run - Loss", "Throw Away", "Sack", "XP Converted - 1pt", "XP Converted - 2pt", "XP Converted - 3pt", "XP Missed - 1pt", "XP Missed - 2pt", "XP Missed - 3pt"];
 const DEFAULT_POSITIONS = ["QB", "WR"];
 
 const initialPlayers = [
@@ -636,9 +643,9 @@ export default function FootballCoach() {
         if (o === "Drop")         s.drops++;
         if (o === "Incomplete")   s.incompletions++;
         if (o === TD) s.tds++;
-        if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; }
-        if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; }
-        if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; }
+        if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
+        if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
+        if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
         if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
@@ -656,9 +663,9 @@ export default function FootballCoach() {
         if (o === "Incomplete")   s.incompletions++;
         if (o === "Drop")         s.drops++;
         if (o === TD) s.tds++;
-        if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; }
-        if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; }
-        if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; }
+        if (o === "XP Converted - 1pt") { s.xp1++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
+        if (o === "XP Converted - 2pt") { s.xp2++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
+        if (o === "XP Converted - 3pt") { s.xp3++; s.recGain++; s.receptions++; s.yards += p.yardsGained; }
         if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
