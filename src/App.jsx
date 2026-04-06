@@ -11,15 +11,15 @@ function SharedGameView() {
   } catch {
     return <div style={{ padding: 40, textAlign: "center", color: "#dc2626" }}>Invalid share link.</div>;
   }
-  const { game, score, plays, players, tdOutcome } = data;
+  const { game, score, plays, defPlays: gdPlays = [], players, tdOutcome } = data;
   const totalYards = plays.reduce((a, b) => a + (Number(b.yardsGained) || 0), 0);
   const tds = plays.filter(p => p.outcome === tdOutcome).length;
   const isPassPlay = p => p.playType === "Pass";
   const resultColor = score.result === "W" ? "#059669" : score.result === "L" ? "#dc2626" : "#6b7280";
 
-  // Build per-player stats
+  // Offensive per-player stats
   const byPlayer = {};
-  const ensureP = (pid, role) => {
+  const ensureP = (pid) => {
     if (!byPlayer[pid]) {
       const pl = players.find(x => x.id === Number(pid));
       if (!pl) return false;
@@ -59,110 +59,231 @@ function SharedGameView() {
   const throwers = Object.values(byPlayer).filter(p => p.isThrower).sort((a,b) => a.name.localeCompare(b.name));
   const recRunners = Object.values(byPlayer).filter(p => (p.isReceiver || p.isRunner) && !p.isThrower).sort((a,b) => a.name.localeCompare(b.name));
 
+  // Defensive stats
+  const co = (o) => gdPlays.filter(p => (p.outcome||"").trim() === o).length;
+  const ca = (a) => gdPlays.filter(p => (p.playerAction||"").trim() === a).length;
+  const totalYdsAllowed = gdPlays.reduce((a, b) => a + (Number(b.yardsAllowed)||0), 0);
+  const tdAllowed = co("Touchdown Allowed");
+  const sackTime = co("Sack - Time"); const sackBlitz = co("Sack - Blitz");
+  const intOutcome = co("INT");
+  const passIncD = co("Pass Incomplete"); const passGainD = co("Pass Allowed - Gain"); const passLossD = co("Pass Allowed - Loss");
+  const runGainD = co("Run - Gain"); const runLossD = co("Run - Loss");
+  const passPlaysD = gdPlays.filter(p => p.playType === "Pass");
+  const runPlaysD = gdPlays.filter(p => p.playType === "Run");
+  const passYdsD = passPlaysD.reduce((a,b) => a+(Number(b.yardsAllowed)||0), 0);
+  const runYdsD = runPlaysD.reduce((a,b) => a+(Number(b.yardsAllowed)||0), 0);
+  const outcomeCounts = {};
+  gdPlays.forEach(p => { const o=(p.outcome||"").trim(); if(o) outcomeCounts[o]=(outcomeCounts[o]||0)+1; });
+  const playerActionMap = {};
+  gdPlays.forEach(p => {
+    const a=(p.playerAction||"").trim(); if(!a||!p.player) return;
+    const pl=players.find(x=>x.id===Number(p.player)); if(!pl) return;
+    if(!playerActionMap[p.player]) playerActionMap[p.player]={name:pl.name,pbu:0,flagPull:0,intAction:0,sackAction:0};
+    const s=playerActionMap[p.player];
+    if(a==="PBU")s.pbu++; if(a==="Flag Pull")s.flagPull++; if(a==="INT")s.intAction++; if(a==="Sack")s.sackAction++;
+  });
+  const playerActionRows = Object.values(playerActionMap).filter(p=>p.pbu||p.flagPull||p.intAction||p.sackAction).sort((a,b)=>a.name.localeCompare(b.name));
+
   const thStyle = { padding: "8px 10px", textAlign: "center", fontWeight: 700, color: "#fff", fontSize: 11, textTransform: "uppercase", whiteSpace: "nowrap" };
   const tdStyle = (color) => ({ padding: "8px 10px", textAlign: "center", color: color || "#374151", fontSize: 12 });
 
+  const card = (label, val, sub) => (
+    <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: "14px 18px" }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 900, color: "#111827" }}>{val}</div>
+      {sub && <div style={{ fontSize: 11, color: "#6b7280" }}>{sub}</div>}
+    </div>
+  );
+
+  const handleDownloadPDF = async () => {
+    const el = document.getElementById("share-content");
+    if (!el) return;
+    const { default: html2canvas } = await import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.esm.min.js");
+    const { jsPDF } = await import("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f4f6fa" });
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF.jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = (canvas.height * pdfW) / canvas.width;
+    const pageH = pdf.internal.pageSize.getHeight();
+    let yPos = 0;
+    while (yPos < pdfH) {
+      if (yPos > 0) pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, -yPos, pdfW, pdfH);
+      yPos += pageH;
+    }
+    pdf.save(`${game}-summary.pdf`);
+  };
+
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#f4f6fa", minHeight: "100vh", padding: 24 }}>
-      <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Header */}
-        <div style={{ background: "linear-gradient(135deg, #000 0%, #111 100%)", borderRadius: 16, padding: "20px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{game}</div>
-            <div style={{ fontSize: 13, color: "#a8b8c8", marginTop: 2 }}>Game Summary · {plays.length} plays</div>
-          </div>
-          {(score.us !== "" || score.them !== "") && (
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 4 }}>
+        {/* Download button (outside captured area) */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button onClick={handleDownloadPDF} style={{ padding: "9px 20px", background: "#1a2f5e", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>⬇ Download PDF</button>
+        </div>
+
+        {/* Captured content */}
+        <div id="share-content" style={{ display: "flex", flexDirection: "column", gap: 20, padding: 8 }}>
+          {/* Header */}
+          <div style={{ background: "linear-gradient(135deg, #000 0%, #111 100%)", borderRadius: 16, padding: "20px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{game}</div>
+              <div style={{ fontSize: 13, color: "#a8b8c8", marginTop: 2 }}>Game Summary · {plays.length} off / {gdPlays.length} def plays</div>
+            </div>
+            {(score.us !== "" || score.them !== "") && (
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 32, fontWeight: 900, color: "#fff" }}>{score.us} — {score.them}</div>
                 {score.result && <div style={{ fontSize: 14, fontWeight: 800, color: resultColor }}>{score.result === "W" ? "WIN" : score.result === "L" ? "LOSS" : "TIE"}</div>}
               </div>
+            )}
+          </div>
+
+          {/* ── OFFENSE ── */}
+          <div style={{ fontSize: 13, fontWeight: 900, color: "#1a2f5e", textTransform: "uppercase", letterSpacing: 1 }}>Offense</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {card("Total Plays", plays.length)}
+            {card("Total Yards", totalYards)}
+            {card("Touchdowns", tds)}
+          </div>
+
+          {throwers.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Throwers</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead><tr style={{ background: "#1a2f5e" }}>
+                  {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h,i) => (
+                    <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {throwers.map((p, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
+                      <td style={{ padding:"7px 10px", fontWeight:700, color:"#111827", fontSize:11 }}>{p.name}</td>
+                      <td style={{ padding:"7px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"1px 6px", borderRadius:999, fontSize:10, fontWeight:700 }}>{p.position}</span></td>
+                      <td style={tdStyle()}>{p.attempts||"—"}</td>
+                      <td style={tdStyle()}>{p.receptions||"—"}</td>
+                      <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
+                      <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.ints>0?p.ints:"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{p.throwAways||"—"}</td>
+                      <td style={tdStyle()}>{p.sacks||"—"}</td>
+                      <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </div>
 
-        {/* Overview */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          {[["Total Plays", plays.length], ["Total Yards", totalYards], ["Touchdowns", tds]].map(([label, val]) => (
-            <div key={label} style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: "16px 20px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: "#111827" }}>{val}</div>
+          {recRunners.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Receivers & Runners</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead><tr style={{ background: "#1a2f5e" }}>
+                  {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","Yards"].map((h,i) => (
+                    <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {recRunners.map((p, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
+                      <td style={{ padding:"7px 10px", fontWeight:700, color:"#111827", fontSize:11 }}>{p.name}</td>
+                      <td style={{ padding:"7px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"1px 6px", borderRadius:999, fontSize:10, fontWeight:700 }}>{p.position}</span></td>
+                      <td style={tdStyle()}>{p.attempts||"—"}</td>
+                      <td style={tdStyle()}>{p.receptions||"—"}</td>
+                      <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
+                      <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
+                      <td style={tdStyle()}>{p.runs||"—"}</td>
+                      <td style={tdStyle("#059669")}>{p.runGain||"—"}</td>
+                      <td style={tdStyle("#dc2626")}>{p.runLoss||"—"}</td>
+                      <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
+                      <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
+
+          {/* ── DEFENSE ── */}
+          {gdPlays.length > 0 && (<>
+            <div style={{ fontSize: 13, fontWeight: 900, color: "#dc2626", textTransform: "uppercase", letterSpacing: 1 }}>Defense</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              {card("Plays Defended", gdPlays.length)}
+              {card("Yards Allowed", totalYdsAllowed, `${(totalYdsAllowed/gdPlays.length).toFixed(1)} yds/play`)}
+              {card("TDs Allowed", tdAllowed)}
+              {card("Sacks / INTs", `${sackTime+sackBlitz} / ${intOutcome}`, `Time: ${sackTime} · Blitz: ${sackBlitz}`)}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+              {/* Pass vs Run */}
+              <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Pass vs Run Allowed</div>
+                {[["Pass", passPlaysD.length, passYdsD], ["Run", runPlaysD.length, runYdsD]].map(([type, count, yards]) => {
+                  const pct = gdPlays.length > 0 ? Math.round(count / gdPlays.length * 100) : 0;
+                  return (
+                    <div key={type} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ fontWeight: 600 }}>{type}</span>
+                        <span style={{ color: "#9ca3af" }}>{count} · {count>0?(yards/count).toFixed(1):0} yds</span>
+                      </div>
+                      <div style={{ height: 7, background: "#f3f4f6", borderRadius: 99 }}>
+                        <div style={{ height: "100%", width: `${pct}%`, background: "#dc2626", borderRadius: 99 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Outcome breakdown */}
+              <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Play Outcomes</div>
+                {Object.entries(outcomeCounts).sort((a,b)=>b[1]-a[1]).map(([outcome, count]) => {
+                  const pct = Math.round(count / gdPlays.length * 100);
+                  const col = ["Touchdown Allowed","Pass Allowed - Gain","Run - Gain","XP Allowed"].includes(outcome) ? "#dc2626" : "#059669";
+                  return (
+                    <div key={outcome} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: "#374151", width: 110, flexShrink: 0 }}>{outcome}</span>
+                      <div style={{ flex: 1, height: 6, background: "#f3f4f6", borderRadius: 99 }}>
+                        <div style={{ height: "100%", width: `${pct}%`, background: col, borderRadius: 99 }} />
+                      </div>
+                      <span style={{ fontSize: 10, color: "#9ca3af", width: 18, textAlign: "right" }}>{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Player actions */}
+              <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Player Actions</div>
+                {playerActionRows.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>No actions logged.</div> : playerActionRows.map((p, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "5px 8px", background: "#f8fafc", borderRadius: 7 }}>
+                    <div style={{ flex: 1, fontSize: 12, fontWeight: 700 }}>{p.name}</div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {p.pbu>0 && <span style={{ fontSize:9, fontWeight:700, background:"#e0e7ff", color:"#4338ca", padding:"1px 5px", borderRadius:999 }}>{p.pbu} PBU</span>}
+                      {p.flagPull>0 && <span style={{ fontSize:9, fontWeight:700, background:"#dbeafe", color:"#1d4ed8", padding:"1px 5px", borderRadius:999 }}>{p.flagPull} Flag</span>}
+                      {p.intAction>0 && <span style={{ fontSize:9, fontWeight:700, background:"#d1fae5", color:"#065f46", padding:"1px 5px", borderRadius:999 }}>{p.intAction} INT</span>}
+                      {p.sackAction>0 && <span style={{ fontSize:9, fontWeight:700, background:"#d1fae5", color:"#065f46", padding:"1px 5px", borderRadius:999 }}>{p.sackAction} Sack</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>)}
+
+          <div style={{ textAlign: "center", fontSize: 11, color: "#9ca3af" }}>Generated by Coacher</div>
         </div>
-
-        {/* Throwers table */}
-        {throwers.length > 0 && (
-          <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Throwers</div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead><tr style={{ background: "#1a2f5e" }}>
-                {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","Yards"].map((h,i) => (
-                  <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center", padding: i < 2 ? "8px 10px" : "8px 10px" }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {throwers.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
-                    <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
-                    <td style={{ padding:"8px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"2px 8px", borderRadius:999, fontSize:11, fontWeight:700 }}>{p.position}</span></td>
-                    <td style={tdStyle()}>{p.attempts||"—"}</td>
-                    <td style={tdStyle()}>{p.receptions||"—"}</td>
-                    <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
-                    <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
-                    <td style={tdStyle("#dc2626")}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>
-                    <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
-                    <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
-                    <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
-                    <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
-                    <td style={tdStyle("#dc2626")}>{p.ints>0?p.ints:"—"}</td>
-                    <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
-                    <td style={tdStyle("#6b7280")}>{p.throwAways||"—"}</td>
-                    <td style={tdStyle()}>{p.sacks||"—"}</td>
-                    <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Receivers & Runners table */}
-        {recRunners.length > 0 && (
-          <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Receivers & Runners</div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead><tr style={{ background: "#1a2f5e" }}>
-                {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","Yards"].map((h,i) => (
-                  <th key={h} style={{ ...thStyle, textAlign: i < 2 ? "left" : "center" }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {recRunners.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
-                    <td style={{ padding:"8px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
-                    <td style={{ padding:"8px 10px" }}><span style={{ background:"#e8eef7", color:"#1a2f5e", padding:"2px 8px", borderRadius:999, fontSize:11, fontWeight:700 }}>{p.position}</span></td>
-                    <td style={tdStyle()}>{p.attempts||"—"}</td>
-                    <td style={tdStyle()}>{p.receptions||"—"}</td>
-                    <td style={tdStyle("#6366f1")}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
-                    <td style={tdStyle("#059669")}>{p.attempts>0?`${(p.tds/p.attempts*100).toFixed(1)}%`:"—"}</td>
-                    <td style={tdStyle("#059669")}>{p.recGain||"—"}</td>
-                    <td style={tdStyle("#dc2626")}>{p.recLoss||"—"}</td>
-                    <td style={tdStyle("#6b7280")}>{p.incompletions||"—"}</td>
-                    <td style={tdStyle("#6b7280")}>{p.drops||"—"}</td>
-                    <td style={tdStyle()}>{p.runs||"—"}</td>
-                    <td style={tdStyle("#059669")}>{p.runGain||"—"}</td>
-                    <td style={tdStyle("#dc2626")}>{p.runLoss||"—"}</td>
-                    <td style={tdStyle()}>{p.tds>0?p.tds:"—"}</td>
-                    <td style={{ ...tdStyle("#4a6fa5"), fontWeight:700 }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div style={{ textAlign: "center", fontSize: 12, color: "#9ca3af" }}>Generated by Coacher</div>
       </div>
     </div>
   );
@@ -1637,7 +1758,7 @@ export default function FootballCoach() {
                       {gPlays.length > 0 && (
                         <>
                         <button onClick={() => {
-                          const payload = { game, score, plays: gPlays, players, tdOutcome };
+                          const gdPlaysShare = defPlays.filter(p => p.game === game); const payload = { game, score, plays: gPlays, defPlays: gdPlaysShare, players, tdOutcome };
                           const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
                           const url = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
                           navigator.clipboard.writeText(url).then(() => alert("Share link copied to clipboard!")).catch(() => prompt("Copy this link:", url));
@@ -1645,39 +1766,10 @@ export default function FootballCoach() {
                           🔗 Share
                         </button>
                         <button onClick={() => {
-                          const payload = { game, score, plays: gPlays, players, tdOutcome };
-                          // Build per-player stats inline for PDF
-                          const isPass = p => p.playType === "Pass";
-                          const TD = tdOutcome;
-                          const notComplete = ["Incomplete","Drop","Interception","INT","Throw Away","Sack"];
-                          const byP = {};
-                          const ep = (pid) => { if (!byP[pid]) { const pl = players.find(x => x.id === Number(pid)); if (!pl) return false; byP[pid] = { name: pl.name, position: pl.position, attempts:0,receptions:0,recGain:0,recLoss:0,incompletions:0,runs:0,runGain:0,runLoss:0,tds:0,ints:0,drops:0,throwAways:0,sacks:0,yards:0,isThrower:false,isReceiver:false,isRunner:false }; } return true; };
-                          gPlays.forEach(p => {
-                            const o = (p.outcome||"").trim(); const y = Number(p.yardsGained)||0;
-                            if (p.thrower && isPass(p) && ep(p.thrower)) { const s=byP[p.thrower]; s.isThrower=true; if(o!=="Throw Away"&&o!=="Sack")s.attempts++; if(o==="Interception"||o==="INT")s.ints++; if(o==="Throw Away")s.throwAways++; if(o==="Sack")s.sacks++; if(o==="Drop")s.drops++; if(o==="Incomplete")s.incompletions++; if(o===TD)s.tds++; if(!notComplete.includes(o)&&o!==""){s.receptions++;s.yards+=y;if(y>0||o===TD)s.recGain++;if(y<0)s.recLoss++;} }
-                            if (p.receiver && p.receiver!==p.thrower && isPass(p) && ep(p.receiver)) { const s=byP[p.receiver]; s.isReceiver=true; s.attempts++; if(o==="Incomplete")s.incompletions++; if(o==="Drop")s.drops++; if(o===TD)s.tds++; if(!notComplete.includes(o)&&o!==""){s.receptions++;s.yards+=y;if(y>0||o===TD)s.recGain++;if(y<0)s.recLoss++;} }
-                            if (p.carrier && !isPass(p) && ep(p.carrier)) { const s=byP[p.carrier]; s.isRunner=true; s.runs++; s.yards+=y; if(y>0||o===TD)s.runGain++; if(y<0)s.runLoss++; if(o===TD)s.tds++; }
-                          });
-                          const throwers = Object.values(byP).filter(p=>p.isThrower).sort((a,b)=>a.name.localeCompare(b.name));
-                          const recRun = Object.values(byP).filter(p=>(p.isReceiver||p.isRunner)&&!p.isThrower).sort((a,b)=>a.name.localeCompare(b.name));
-                          const totalYards = gPlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0);
-                          const tds = gPlays.filter(p=>p.outcome===TD).length;
-                          const resultColor = score.result==="W"?"#059669":score.result==="L"?"#dc2626":"#6b7280";
-                          const th = (t) => `<th style="padding:7px 10px;text-align:center;background:#1a2f5e;color:#fff;font-size:11px;text-transform:uppercase;white-space:nowrap">${t}</th>`;
-                          const td = (v, color="") => `<td style="padding:7px 10px;text-align:center;font-size:12px;${color?`color:${color};font-weight:700`:"color:#374151"}">${v||"—"}</td>`;
-                          const pct = (n,d) => d>0?`${Math.round(n/d*100)}%`:"—";
-                          const fpct = (n,d) => d>0?`${(n/d*100).toFixed(1)}%`:"—";
-                          const throwerRows = throwers.map(p=>`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:7px 10px;font-weight:700;font-size:12px">${p.name}</td><td style="padding:7px 10px;font-size:11px;color:#1a2f5e;font-weight:700">${p.position}</td>${td(p.attempts)}${td(p.receptions)}${td(pct(p.receptions,p.attempts),"#6366f1")}${td(fpct(p.tds,p.attempts),"#059669")}${td(fpct(p.ints,p.attempts),"#dc2626")}${td(p.recGain||"","#059669")}${td(p.recLoss||"","#dc2626")}${td(p.incompletions||"")}${td(p.tds||"")}${td(p.ints||"","#dc2626")}${td(p.drops||"")}${td(p.throwAways||"")}${td(p.sacks||"")}${td(p.yards?(p.yards>0?`+${p.yards}`:p.yards):"","#4a6fa5")}</tr>`).join("");
-                          const recRunRows = recRun.map(p=>`<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:7px 10px;font-weight:700;font-size:12px">${p.name}</td><td style="padding:7px 10px;font-size:11px;color:#1a2f5e;font-weight:700">${p.position}</td>${td(p.attempts)}${td(p.receptions)}${td(pct(p.receptions,p.attempts),"#6366f1")}${td(fpct(p.tds,p.attempts),"#059669")}${td(p.recGain||"","#059669")}${td(p.recLoss||"","#dc2626")}${td(p.incompletions||"")}${td(p.drops||"")}${td(p.runs||"")}${td(p.runGain||"","#059669")}${td(p.runLoss||"","#dc2626")}${td(p.tds||"")}${td(p.yards?(p.yards>0?`+${p.yards}`:p.yards):"","#4a6fa5")}</tr>`).join("");
-                          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${game} Summary</title><style>*{font-family:'Helvetica Neue',sans-serif;margin:0;padding:0;box-sizing:border-box}body{background:#f4f6fa;padding:32px;color:#111827}h1{font-size:24px;font-weight:900}h2{font-size:15px;font-weight:800;margin-bottom:12px;color:#111827}.header{background:#111;border-radius:12px;padding:20px 28px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.overview{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}.card{background:#fff;border-radius:10px;border:1px solid #e5e7eb;padding:14px 18px}.card-label{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:1px}.card-value{font-size:26px;font-weight:900}.section{background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:18px;margin-bottom:16px;overflow-x:auto}table{width:100%;border-collapse:collapse}@media print{body{background:#fff;padding:16px}.header{-webkit-print-color-adjust:exact;print-color-adjust:exact}thead{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>
-                          <div class="header"><div><h1 style="color:#fff">${game}</h1><div style="color:#a8b8c8;font-size:13px;margin-top:4px">${gPlays.length} plays logged</div></div>${score.us!==""||score.them!==""?`<div style="text-align:right"><div style="font-size:28px;font-weight:900;color:#fff">${score.us} — ${score.them}</div>${score.result?`<div style="font-size:13px;font-weight:800;color:${resultColor}">${score.result==="W"?"WIN":score.result==="L"?"LOSS":"TIE"}</div>`:""}</div>`:""}</div>
-                          <div class="overview"><div class="card"><div class="card-label">Total Plays</div><div class="card-value">${gPlays.length}</div></div><div class="card"><div class="card-label">Total Yards</div><div class="card-value">${totalYards}</div></div><div class="card"><div class="card-label">Touchdowns</div><div class="card-value">${tds}</div></div></div>
-                          ${throwers.length>0?`<div class="section"><h2>Throwers</h2><table><thead><tr>${["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","Yards"].map(th).join("")}</tr></thead><tbody>${throwerRows}</tbody></table></div>`:""}
-                          ${recRun.length>0?`<div class="section"><h2>Receivers & Runners</h2><table><thead><tr>${["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","Yards"].map(th).join("")}</tr></thead><tbody>${recRunRows}</tbody></table></div>`:""}
-                          <script>window.onload=()=>window.print();</script></body></html>`;
-                          const w = window.open("", "_blank");
-                          w.document.write(html);
-                          w.document.close();
+                          const gdPlaysShare = defPlays.filter(p => p.game === game); const payload = { game, score, plays: gPlays, defPlays: gdPlaysShare, players, tdOutcome };
+                          const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+                          const url = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+                          window.open(url, "_blank");
                         }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", background: "rgba(255,255,255,0.15)", color: "#fff" }}>
                           ⬇ PDF
                         </button>
