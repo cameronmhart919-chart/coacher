@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import React from "react";
 
 // ── Shared game view (read-only, decoded from URL) ──────────────────────────
 function SharedGameView() {
@@ -95,24 +96,46 @@ function SharedGameView() {
     </div>
   );
 
-  const handleDownloadPDF = async () => {
+  const [pdfLoading, setPdfLoading] = React.useState(false);
+
+  const handleDownloadPDF = () => {
     const el = document.getElementById("share-content");
     if (!el) return;
-    const { default: html2canvas } = await import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.esm.min.js");
-    const { jsPDF } = await import("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f4f6fa" });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF.jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = (canvas.height * pdfW) / canvas.width;
-    const pageH = pdf.internal.pageSize.getHeight();
-    let yPos = 0;
-    while (yPos < pdfH) {
-      if (yPos > 0) pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, -yPos, pdfW, pdfH);
-      yPos += pageH;
-    }
-    pdf.save(`${game}-summary.pdf`);
+    setPdfLoading(true);
+
+    const loadScript = (src) => new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+
+    Promise.all([
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
+    ]).then(() => {
+      window.html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f4f6fa" }).then(canvas => {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = (canvas.height * pdfW) / canvas.width;
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgData = canvas.toDataURL("image/png");
+        let yPos = 0;
+        while (yPos < pdfH) {
+          if (yPos > 0) pdf.addPage();
+          pdf.addImage(imgData, "PNG", 0, -yPos, pdfW, pdfH);
+          yPos += pageH;
+        }
+        pdf.save(`${game}-summary.pdf`);
+        setPdfLoading(false);
+      });
+    }).catch(() => {
+      alert("Failed to load PDF libraries. Please check your internet connection.");
+      setPdfLoading(false);
+    });
   };
 
   return (
@@ -120,7 +143,9 @@ function SharedGameView() {
       <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 4 }}>
         {/* Download button (outside captured area) */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-          <button onClick={handleDownloadPDF} style={{ padding: "9px 20px", background: "#1a2f5e", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>⬇ Download PDF</button>
+          <button onClick={handleDownloadPDF} disabled={pdfLoading} style={{ padding: "9px 20px", background: pdfLoading ? "#6b7280" : "#1a2f5e", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: pdfLoading ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {pdfLoading ? "⏳ Generating..." : "⬇ Download PDF"}
+          </button>
         </div>
 
         {/* Captured content */}
