@@ -226,60 +226,93 @@ function SharedGameView() {
               {card("Sacks / INTs", `${sackTime+sackBlitz} / ${intOutcome}`, `Time: ${sackTime} · Blitz: ${sackBlitz}`)}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-              {/* Pass vs Run */}
-              <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Pass vs Run Allowed</div>
-                {[["Pass", passPlaysD.length, passYdsD], ["Run", runPlaysD.length, runYdsD]].map(([type, count, yards]) => {
-                  const pct = gdPlays.length > 0 ? Math.round(count / gdPlays.length * 100) : 0;
-                  return (
-                    <div key={type} style={{ marginBottom: 10 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                        <span style={{ fontWeight: 600 }}>{type}</span>
-                        <span style={{ color: "#9ca3af" }}>{count} · {count>0?(yards/count).toFixed(1):0} yds</span>
-                      </div>
-                      <div style={{ height: 7, background: "#f3f4f6", borderRadius: 99 }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: "#dc2626", borderRadius: 99 }} />
-                      </div>
+            {/* Pass vs Run */}
+            <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Pass vs Run Allowed</div>
+              {[["Pass", passPlaysD.length, passYdsD], ["Run", runPlaysD.length, runYdsD]].map(([type, count, yards]) => {
+                const pct = gdPlays.length > 0 ? Math.round(count / gdPlays.length * 100) : 0;
+                return (
+                  <div key={type} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                      <span style={{ fontWeight: 600 }}>{type}</span>
+                      <span style={{ color: "#9ca3af" }}>{count} plays · {count>0?(yards/count).toFixed(1):0} yds/play · {pct}%</span>
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Outcome breakdown */}
-              <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Play Outcomes</div>
-                {Object.entries(outcomeCounts).sort((a,b)=>b[1]-a[1]).map(([outcome, count]) => {
-                  const pct = Math.round(count / gdPlays.length * 100);
-                  const col = ["Touchdown Allowed","Pass Allowed - Gain","Run - Gain","XP Allowed"].includes(outcome) ? "#dc2626" : "#059669";
-                  return (
-                    <div key={outcome} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: "#374151", width: 110, flexShrink: 0 }}>{outcome}</span>
-                      <div style={{ flex: 1, height: 6, background: "#f3f4f6", borderRadius: 99 }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: col, borderRadius: 99 }} />
-                      </div>
-                      <span style={{ fontSize: 10, color: "#9ca3af", width: 18, textAlign: "right" }}>{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Player actions */}
-              <div style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #e5e7eb", padding: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Player Actions</div>
-                {playerActionRows.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af" }}>No actions logged.</div> : playerActionRows.map((p, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "5px 8px", background: "#f8fafc", borderRadius: 7 }}>
-                    <div style={{ flex: 1, fontSize: 12, fontWeight: 700 }}>{p.name}</div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {p.pbu>0 && <span style={{ fontSize:9, fontWeight:700, background:"#e0e7ff", color:"#4338ca", padding:"1px 5px", borderRadius:999 }}>{p.pbu} PBU</span>}
-                      {p.flagPull>0 && <span style={{ fontSize:9, fontWeight:700, background:"#dbeafe", color:"#1d4ed8", padding:"1px 5px", borderRadius:999 }}>{p.flagPull} Flag</span>}
-                      {p.intAction>0 && <span style={{ fontSize:9, fontWeight:700, background:"#d1fae5", color:"#065f46", padding:"1px 5px", borderRadius:999 }}>{p.intAction} INT</span>}
-                      {p.sackAction>0 && <span style={{ fontSize:9, fontWeight:700, background:"#d1fae5", color:"#065f46", padding:"1px 5px", borderRadius:999 }}>{p.sackAction} Sack</span>}
+                    <div style={{ height: 7, background: "#f3f4f6", borderRadius: 99 }}>
+                      <div style={{ height: "100%", width: `${pct}%`, background: "#dc2626", borderRadius: 99 }} />
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
+
+            {/* Play Outcomes table */}
+            {Object.keys(outcomeCounts).length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Play Outcomes</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead><tr style={{ background: "#dc2626" }}>
+                  {["Outcome","Count","% of Plays"].map((h, i) => (
+                    <th key={h} style={{ ...thStyle, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {Object.entries(outcomeCounts).sort((a,b)=>b[1]-a[1]).map(([outcome, count], i) => {
+                    const pct = Math.round(count / gdPlays.length * 100);
+                    const isNeg = ["Touchdown Allowed","Pass Allowed - Gain","Run - Gain","XP Allowed"].includes(outcome);
+                    return (
+                      <tr key={outcome} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
+                        <td style={{ padding:"7px 10px", fontWeight:600, color:"#374151", fontSize:11 }}>{outcome}</td>
+                        <td style={{ padding:"7px 10px", textAlign:"center", fontWeight:700, color: isNeg ? "#dc2626" : "#059669" }}>{count}</td>
+                        <td style={{ padding:"7px 10px", textAlign:"center", color:"#6b7280" }}>{pct}%</td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
+                    <td style={{ padding:"8px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTAL</td>
+                    <td style={{ padding:"8px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{gdPlays.length}</td>
+                    <td style={{ padding:"8px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>100%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            )}
+
+            {/* Player Actions table */}
+            {playerActionRows.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 20, overflowX: "auto" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Player Actions</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead><tr style={{ background: "#dc2626" }}>
+                  {["Player","PBUs","Flags Pulled","INTs","Sacks"].map((h, i) => (
+                    <th key={h} style={{ ...thStyle, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {playerActionRows.map((p, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i%2===0?"#fff":"#fafafa" }}>
+                      <td style={{ padding:"7px 10px", fontWeight:700, color:"#111827", fontSize:11 }}>{p.name}</td>
+                      <td style={{ padding:"7px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.pbu||"—"}</td>
+                      <td style={{ padding:"7px 10px", textAlign:"center", color:"#4a6fa5", fontWeight:700 }}>{p.flagPull||"—"}</td>
+                      <td style={{ padding:"7px 10px", textAlign:"center", color:"#059669", fontWeight:700 }}>{p.intAction||"—"}</td>
+                      <td style={{ padding:"7px 10px", textAlign:"center", color:"#059669", fontWeight:700 }}>{p.sackAction||"—"}</td>
+                    </tr>
+                  ))}
+                  {(() => {
+                    const t = { pbu:0, flagPull:0, intAction:0, sackAction:0 };
+                    playerActionRows.forEach(p => Object.keys(t).forEach(k => { t[k] += p[k]||0; }));
+                    return (
+                      <tr style={{ borderTop: "2px solid #e5e7eb", background: "#f0f4f8" }}>
+                        <td style={{ padding:"8px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                        {[t.pbu, t.flagPull, t.intAction, t.sackAction].map((v,i) => (
+                          <td key={i} style={{ padding:"8px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{v||"—"}</td>
+                        ))}
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+            )}
           </>)}
 
           <div style={{ textAlign: "center", fontSize: 11, color: "#9ca3af" }}>Generated by Coacher</div>
