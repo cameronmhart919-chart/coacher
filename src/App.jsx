@@ -1764,6 +1764,133 @@ export default function FootballCoach() {
                       </div>
                     </div>
                   )}
+
+                  {/* ── Defensive stats for this game ── */}
+                  {(() => {
+                    const gdPlays = defPlays.filter(p => p.game === game);
+                    if (!gdPlays.length) return (
+                      <div style={{ padding: "0 24px 20px", color: "#9ca3af", fontSize: 13 }}>No defensive plays logged for this game.</div>
+                    );
+
+                    const co = (o) => gdPlays.filter(p => (p.outcome||"").trim() === o).length;
+                    const ca = (a) => gdPlays.filter(p => (p.playerAction||"").trim() === a).length;
+                    const totalYdsAllowed = gdPlays.reduce((a, b) => a + (Number(b.yardsAllowed)||0), 0);
+                    const tdAllowed   = co("Touchdown Allowed");
+                    const sackTime    = co("Sack - Time");
+                    const sackBlitz   = co("Sack - Blitz");
+                    const intOutcome  = co("INT");
+                    const passInc     = co("Pass Incomplete");
+                    const passGain    = co("Pass Allowed - Gain");
+                    const passLoss    = co("Pass Allowed - Loss");
+                    const runGain     = co("Run - Gain");
+                    const runLoss     = co("Run - Loss");
+                    const passPlaysD  = gdPlays.filter(p => p.playType === "Pass");
+                    const runPlaysD   = gdPlays.filter(p => p.playType === "Run");
+                    const passYdsD    = passPlaysD.reduce((a, b) => a + (Number(b.yardsAllowed)||0), 0);
+                    const runYdsD     = runPlaysD.reduce((a, b) => a + (Number(b.yardsAllowed)||0), 0);
+
+                    // Outcome breakdown counts
+                    const outcomeCounts = {};
+                    gdPlays.forEach(p => {
+                      const o = (p.outcome||"").trim();
+                      if (o) outcomeCounts[o] = (outcomeCounts[o]||0) + 1;
+                    });
+
+                    // Player action stats
+                    const playerActionMap = {};
+                    gdPlays.forEach(p => {
+                      const a = (p.playerAction||"").trim();
+                      if (!a || !p.player) return;
+                      const pl = players.find(x => x.id === Number(p.player));
+                      if (!pl) return;
+                      if (!playerActionMap[p.player]) playerActionMap[p.player] = { name: pl.name, pbu:0, flagPull:0, intAction:0, sackAction:0 };
+                      const s = playerActionMap[p.player];
+                      if (a === "PBU")       s.pbu++;
+                      if (a === "Flag Pull") s.flagPull++;
+                      if (a === "INT")       s.intAction++;
+                      if (a === "Sack")      s.sackAction++;
+                    });
+                    const playerActionRows = Object.values(playerActionMap).filter(p => p.pbu||p.flagPull||p.intAction||p.sackAction).sort((a,b) => a.name.localeCompare(b.name));
+
+                    return (
+                      <div style={{ borderTop: "2px solid #f3f4f6", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: "#dc2626", textTransform: "uppercase", letterSpacing: 0.5 }}>Defense</div>
+
+                        {/* Overview */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                          <StatCard label="Plays Defended" value={gdPlays.length} accent="#dc2626" />
+                          <StatCard label="Yards Allowed" value={totalYdsAllowed} sub={`${(totalYdsAllowed/gdPlays.length).toFixed(1)} yds/play`} accent="#f59e0b" />
+                          <StatCard label="TDs Allowed" value={tdAllowed} accent="#dc2626" />
+                          <StatCard label="Sacks / INTs" value={`${sackTime+sackBlitz} / ${intOutcome}`} sub={`Time: ${sackTime} · Blitz: ${sackBlitz}`} accent="#059669" />
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                          {/* Pass vs Run */}
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#374151", marginBottom: 10 }}>Pass vs Run Allowed</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                              {[["Pass", passPlaysD.length, passYdsD], ["Run", runPlaysD.length, runYdsD]].map(([type, count, yards]) => {
+                                const pct = gdPlays.length > 0 ? Math.round(count / gdPlays.length * 100) : 0;
+                                return (
+                                  <div key={type}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                                      <span style={{ fontWeight: 600, color: "#374151" }}>{type}</span>
+                                      <span style={{ color: "#9ca3af" }}>{count} · {count > 0 ? (yards/count).toFixed(1) : 0} yds</span>
+                                    </div>
+                                    <div style={{ height: 7, background: "#f3f4f6", borderRadius: 99 }}>
+                                      <div style={{ height: "100%", width: `${pct}%`, background: "#dc2626", borderRadius: 99 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Outcome breakdown */}
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#374151", marginBottom: 10 }}>Play Outcome Breakdown</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              {Object.entries(outcomeCounts).sort((a,b) => b[1]-a[1]).map(([outcome, count]) => {
+                                const pct = Math.round(count / gdPlays.length * 100);
+                                const col = ["Touchdown Allowed","Pass Allowed - Gain","Run - Gain","XP Allowed"].includes(outcome) ? "#dc2626" : ["Pass Incomplete","Pass Allowed - Loss","Run - Loss"].includes(outcome) ? "#059669" : ["Sack - Time","Sack - Blitz","INT"].includes(outcome) ? "#059669" : "#6b7280";
+                                return (
+                                  <div key={outcome} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", width: 120, flexShrink: 0 }}>{outcome}</span>
+                                    <div style={{ flex: 1, height: 6, background: "#f3f4f6", borderRadius: 99 }}>
+                                      <div style={{ height: "100%", width: `${pct}%`, background: col, borderRadius: 99 }} />
+                                    </div>
+                                    <span style={{ fontSize: 11, color: "#9ca3af", width: 20, textAlign: "right" }}>{count}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Player action stats */}
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#374151", marginBottom: 10 }}>Player Actions</div>
+                            {playerActionRows.length === 0 ? (
+                              <div style={{ fontSize: 12, color: "#9ca3af" }}>No player actions logged.</div>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {playerActionRows.map((p, i) => (
+                                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#f8fafc", borderRadius: 8 }}>
+                                    <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: "#111827" }}>{p.name}</div>
+                                    <div style={{ display: "flex", gap: 6 }}>
+                                      {p.pbu > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: "#e0e7ff", color: "#4338ca", padding: "1px 6px", borderRadius: 999 }}>{p.pbu} PBU</span>}
+                                      {p.flagPull > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#1d4ed8", padding: "1px 6px", borderRadius: 999 }}>{p.flagPull} Flag</span>}
+                                      {p.intAction > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: "#d1fae5", color: "#065f46", padding: "1px 6px", borderRadius: 999 }}>{p.intAction} INT</span>}
+                                      {p.sackAction > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: "#d1fae5", color: "#065f46", padding: "1px 6px", borderRadius: 999 }}>{p.sackAction} Sack</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
