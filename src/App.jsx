@@ -592,18 +592,21 @@ export default function FootballCoach() {
           name: pl.name, position: pl.position,
           attempts: 0,        // pass attempts (thrower)
           receptions: 0,      // caught passes (receiver, gain or TD)
-          recGain: 0,         // receptions with positive yards
-          recLoss: 0,         // receptions with negative yards
-          incompletions: 0,   // incomplete passes targeted at receiver
-          runs: 0,            // run plays (carrier)
+          recGain: 0,
+          recLoss: 0,
+          incompletions: 0,
+          runs: 0,
           runGain: 0,
           runLoss: 0,
           tds: 0,
-          ints: 0,            // interceptions thrown (thrower)
-          drops: 0,           // drops (receiver)
-          throwAways: 0,      // throw aways (thrower)
-          sacks: 0,           // sacks (thrower)
+          ints: 0,
+          drops: 0,
+          throwAways: 0,
+          sacks: 0,
           yards: 0,
+          isThrower: false, isReceiver: false, isRunner: false,
+          // Separate bucket for receiver/runner stats only (so QB throwing stats don't bleed in)
+          recRunStats: { attempts:0, receptions:0, recGain:0, recLoss:0, incompletions:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, yards:0 },
         };
       }
       return true;
@@ -624,7 +627,6 @@ export default function FootballCoach() {
         if (o === "Drop")         s.drops++;
         if (o === "Incomplete")   s.incompletions++;
         if (o === TD) s.tds++;
-        // Credit yards/receptions on any completed pass (not inc/drop/int/throwaway/sack)
         if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
@@ -633,16 +635,15 @@ export default function FootballCoach() {
         }
       }
 
-      // --- RECEIVER stats ---
+      // --- RECEIVER stats (stored in recRunStats so throwing stats don't bleed in) ---
       if (p.receiver && p.receiver !== p.thrower && isPassPlay(p)) {
         if (!ensurePlayer(p.receiver)) return;
-        const s = byPlayer[p.receiver];
-        s.isReceiver = true;
+        byPlayer[p.receiver].isReceiver = true;
+        const s = byPlayer[p.receiver].recRunStats;
         s.attempts++;
         if (o === "Incomplete")   s.incompletions++;
         if (o === "Drop")         s.drops++;
         if (o === TD) s.tds++;
-        // Credit yards/receptions on any completed pass (not inc/drop/int/throwaway/sack)
         if (!["Incomplete","Drop","Interception","INT","Throw Away","Sack"].includes(o) && o !== "") {
           s.receptions++;
           s.yards += p.yardsGained;
@@ -651,11 +652,11 @@ export default function FootballCoach() {
         }
       }
 
-      // --- CARRIER stats (run plays) ---
+      // --- CARRIER stats (stored in recRunStats) ---
       if (p.carrier && isRunPlay(p)) {
         if (!ensurePlayer(p.carrier)) return;
-        const s = byPlayer[p.carrier];
-        s.isRunner = true;
+        byPlayer[p.carrier].isRunner = true;
+        const s = byPlayer[p.carrier].recRunStats;
         s.runs++;
         s.yards += p.yardsGained;
         if (p.yardsGained > 0 || o === TD) s.runGain++;
@@ -663,11 +664,11 @@ export default function FootballCoach() {
         if (o === TD) s.tds++;
       }
 
-      // --- CARRIER on a pass play (e.g. screen/sweep where carrier is logged) ---
+      // --- CARRIER on a pass play TD ---
       if (p.carrier && isPassPlay(p) && o === TD) {
         if (ensurePlayer(p.carrier)) {
           byPlayer[p.carrier].isRunner = true;
-          byPlayer[p.carrier].tds++;
+          byPlayer[p.carrier].recRunStats.tds++;
         }
       }
     });
@@ -1463,29 +1464,32 @@ export default function FootballCoach() {
                       {Object.values(analytics.byPlayer)
                         .filter(p => (p.isReceiver || p.isRunner))
                         .sort((a, b) => a.name.localeCompare(b.name))
-                        .map((p, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                          <td style={{ padding: "9px 10px", fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{p.name}</td>
-                          <td style={{ padding: "9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{p.attempts || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{p.receptions || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 700 }}>{p.attempts > 0 ? `${Math.round(p.receptions / p.attempts * 100)}%` : "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{p.attempts > 0 ? `${(p.tds / p.attempts * 100).toFixed(1)}%` : "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{p.recGain || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{p.recLoss || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#6b7280" }}>{p.incompletions || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#6b7280" }}>{p.drops || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{p.runs || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{p.runGain || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{p.runLoss || "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center" }}>{p.tds > 0 ? <Badge color="green">{p.tds}</Badge> : "—"}</td>
-                          <td style={{ padding: "9px 10px", textAlign: "center", fontWeight: 700, color: THEME.primary }}>{p.yards > 0 ? `+${p.yards}` : p.yards || "—"}</td>
-                        </tr>
-                      ))}
+                        .map((p, i) => {
+                          const r = p.recRunStats;
+                          return (
+                          <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                            <td style={{ padding: "9px 10px", fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{p.name}</td>
+                            <td style={{ padding: "9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{r.attempts || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{r.receptions || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#6366f1", fontWeight: 700 }}>{r.attempts > 0 ? `${Math.round(r.receptions / r.attempts * 100)}%` : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 700 }}>{r.attempts > 0 ? `${(r.tds / r.attempts * 100).toFixed(1)}%` : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{r.recGain || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{r.recLoss || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#6b7280" }}>{r.incompletions || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#6b7280" }}>{r.drops || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#374151" }}>{r.runs || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#059669", fontWeight: 600 }}>{r.runGain || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", color: "#dc2626", fontWeight: 600 }}>{r.runLoss || "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center" }}>{r.tds > 0 ? <Badge color="green">{r.tds}</Badge> : "—"}</td>
+                            <td style={{ padding: "9px 10px", textAlign: "center", fontWeight: 700, color: THEME.primary }}>{r.yards > 0 ? `+${r.yards}` : r.yards || "—"}</td>
+                          </tr>
+                          );
+                        })}
                       {(() => {
                         const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver || p.isRunner));
                         const t = { attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, drops: 0, runs: 0, runGain: 0, runLoss: 0, tds: 0, yards: 0 };
-                        rows.forEach(p => { Object.keys(t).forEach(k => { t[k] += p[k] || 0; }); });
+                        rows.forEach(p => { Object.keys(t).forEach(k => { t[k] += p.recRunStats[k] || 0; }); });
                         const cmpPct = t.attempts > 0 ? `${Math.round(t.receptions / t.attempts * 100)}%` : "—";
                         const tdPct  = t.attempts > 0 ? `${(t.tds / t.attempts * 100).toFixed(1)}%` : "—";
                         return (
