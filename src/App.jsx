@@ -58,7 +58,7 @@ function SharedGameView() {
   });
 
   const throwers = Object.values(byPlayer).filter(p => p.isThrower).sort((a,b) => a.name.localeCompare(b.name));
-  const recRunners = Object.values(byPlayer).filter(p => (p.isReceiver || p.isRunner) && !p.isThrower).sort((a,b) => a.name.localeCompare(b.name));
+  const recRunners = Object.values(byPlayer).filter(p => (p.isReceiver || p.isRunner)).sort((a,b) => a.name.localeCompare(b.name));
 
   // Defensive stats
   const co = (o) => gdPlays.filter(p => (p.outcome||"").trim() === o).length;
@@ -1447,7 +1447,7 @@ export default function FootballCoach() {
                 )}
 
                 {/* Stats by Player — Receivers & Runners */}
-                {Object.values(analytics.byPlayer).some(p => (p.isReceiver || p.isRunner) && !p.isThrower) && (
+                {Object.values(analytics.byPlayer).some(p => (p.isReceiver || p.isRunner)) && (
                 <div style={{ background: "#fff", borderRadius: 16, border: "1.5px solid #e5e7eb", padding: 24, overflowX: "auto" }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 4 }}>Stats by Player — Receivers & Runners</div>
                   <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>Att = Times targeted · Rec = Receptions · Cmp% = catch rate · TD% = TDs per target · Rec+ / Rec- = Gain/Loss · Inc = Incompletions</div>
@@ -1461,7 +1461,7 @@ export default function FootballCoach() {
                     </thead>
                     <tbody>
                       {Object.values(analytics.byPlayer)
-                        .filter(p => (p.isReceiver || p.isRunner) && !p.isThrower)
+                        .filter(p => (p.isReceiver || p.isRunner))
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map((p, i) => (
                         <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
@@ -1483,7 +1483,7 @@ export default function FootballCoach() {
                         </tr>
                       ))}
                       {(() => {
-                        const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver || p.isRunner) && !p.isThrower);
+                        const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver || p.isRunner));
                         const t = { attempts: 0, receptions: 0, recGain: 0, recLoss: 0, incompletions: 0, drops: 0, runs: 0, runGain: 0, runLoss: 0, tds: 0, yards: 0 };
                         rows.forEach(p => { Object.keys(t).forEach(k => { t[k] += p[k] || 0; }); });
                         const cmpPct = t.attempts > 0 ? `${Math.round(t.receptions / t.attempts * 100)}%` : "—";
