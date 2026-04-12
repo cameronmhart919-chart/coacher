@@ -50,7 +50,7 @@ const db   = getFirestore(app);
 // ── IMPORTANT: Replace this with YOUR Firebase UID ───────────────────────────
 // Find it in Firebase Console → Authentication → your account row → UID column
 // Or log in and run: firebase.auth().currentUser.uid in the browser console
-const SUPER_ADMIN_UID = "fATaBVOy0tegnBbxGQfKDXnrDTr1"; // ← replace this
+const SUPER_ADMIN_UID = "CuOYiU4XqVZys1sR8TFUXr3fZkL2"; // ← replace this
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
