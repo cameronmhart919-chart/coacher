@@ -47,6 +47,10 @@ const app  = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
+// Secondary app for creating users without signing out the super admin
+const secondaryApp  = initializeApp(firebaseConfig, "secondary");
+const secondaryAuth = getAuth(secondaryApp);
+
 // ── IMPORTANT: Replace this with YOUR Firebase UID ───────────────────────────
 // Find it in Firebase Console → Authentication → your account row → UID column
 // Or log in and run: firebase.auth().currentUser.uid in the browser console
@@ -226,7 +230,7 @@ function AdminPortal({ currentUser }) {
       const instanceId = generateInstanceId();
 
       // 1. Create the owner Firebase Auth account
-      const cred = await createUserWithEmailAndPassword(auth, ownerEmail.trim(), ownerPass);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, ownerEmail.trim(), ownerPass);
       const ownerUid = cred.user.uid;
 
       // 2. Write the instance document
@@ -276,7 +280,7 @@ function AdminPortal({ currentUser }) {
     if (addPass.length < 6) { setAddMsg("❌ Password must be at least 6 characters."); return; }
     setAdding(true); setAddMsg("");
     try {
-      const cred = await createUserWithEmailAndPassword(auth, addEmail.trim(), addPass);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, addEmail.trim(), addPass);
       await setDoc(doc(db, "users", cred.user.uid), {
         instanceId: detailInst.id,
         role:  addRole,
