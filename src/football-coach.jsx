@@ -771,14 +771,14 @@ export default function FootballCoach() {
   );
 
   // ── Computed / analytics ─────────────────────────────────────────────────
-  const filteredPlays = useMemo(() =>
-    filterGame === "All" ? plays : plays.filter(p => p.game === filterGame),
-    [plays, filterGame]
-  );
+  const filteredPlays = useMemo(() => {
+    if (!plays || !Array.isArray(plays)) return [];
+    return filterGame === "All" ? plays : plays.filter(p => p.game === filterGame);
+}, [plays, filterGame]);
 
   const analytics = useMemo(() => {
     const fp = filteredPlays;
-    if (!fp.length) return null;
+    if (!fp || !fp.length) return null;
     const TD = tdOutcome;
     const isPassPlay = (p) => p.playType === "Pass";
     const isSuccess  = (p) => {
