@@ -225,24 +225,27 @@ function AdminPortal({ currentUser }) {
       setCreateMsg("❌ Password must be at least 6 characters.");
       return;
     }
-    setCreating(true); setCreateMsg("");
+    setCreating(true); setCreateMsg(""); console.log("Starting instance creation...");
     try {
       const instanceId = generateInstanceId();
 
       // 1. Create the owner Firebase Auth account
+      console.log("Step 1 - creating auth user...");
       const cred = await createUserWithEmailAndPassword(secondaryAuth, ownerEmail.trim(), ownerPass);
-      const ownerUid = cred.user.uid;
+      const ownerUid = cred.user.uid; 
 
       // 2. Write the instance document
+      console.log("Step 2 - writing instance doc...");
       await setDoc(doc(db, "instances", instanceId), {
         name:      instName.trim(),
         teamName:  instTeam.trim() || instName.trim(),
         ownerId:   ownerUid,
         createdAt: new Date().toISOString(),
         createdBy: currentUser.uid,
-      });
+      }); 
 
       // 3. Write the owner user document
+      console.log("Step 3 - writing user doc...");
       await setDoc(doc(db, "users", ownerUid), {
         instanceId,
         role:  "admin",
@@ -251,6 +254,7 @@ function AdminPortal({ currentUser }) {
       });
 
       // 4. Seed default config for the instance
+      console.log("Step 4 - seeding config...");
       const base = `data/${instanceId}`;
       const batch = writeBatch(db);
       batch.set(doc(db, base, "config/settings"),      { tdOutcome: "TD" });
@@ -263,7 +267,7 @@ function AdminPortal({ currentUser }) {
       batch.set(doc(db, base, "config/players"),       { players: [] });
       batch.set(doc(db, base, "config/gameScores"),    {});
       batch.set(doc(db, base, "config/coachNotes"),    {});
-      await batch.commit();
+      await batch.commit(); console.log("Done!");
 
       setCreateMsg(`✅ Instance "${instName.trim()}" created! Owner: ${ownerEmail.trim()} · Instance ID: ${instanceId}`);
       setInstName(""); setInstTeam(""); setOwnerName(""); setOwnerEmail(""); setOwnerPass("");
@@ -272,7 +276,7 @@ function AdminPortal({ currentUser }) {
     } finally {
       setCreating(false);
     }
-  };
+  }; 
 
   // ── Add user to existing instance ─────────────────────────────────────────
   const handleAddUser = async () => {
