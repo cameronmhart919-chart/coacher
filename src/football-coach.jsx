@@ -754,22 +754,6 @@ export default function FootballCoach() {
   const [newUserRole,     setNewUserRole]     = useState("coach");
   const [teamMsg,         setTeamMsg]         = useState("");
 
-  // ── Auth guard ───────────────────────────────────────────────────────────
-  if (authLoading) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans', system-ui, sans-serif", background:"#f4f6fa" }}>
-      <div style={{ fontSize:16, color:"#6b7280" }}>Loading...</div>
-    </div>
-  );
-  if (!authUser) return <LoginScreen />;
-  if (!userProfile) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans', system-ui, sans-serif", background:"#f4f6fa" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:16, color:"#374151", marginBottom:16 }}>Account not configured. Contact your administrator.</div>
-        <button onClick={() => signOut(auth)} style={{ padding:"9px 20px", background:"#dc2626", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Sign Out</button>
-      </div>
-    </div>
-  );
-
   // ── Computed / analytics ─────────────────────────────────────────────────
   const filteredPlays = useMemo(() => {
     if (!plays || !Array.isArray(plays)) return [];
@@ -937,6 +921,22 @@ export default function FootballCoach() {
       playType:"", player:"", outcome:"", playerAction:"", yardsAllowed:"", notes:"",
     }));
   };
+
+// ── Auth guard ───────────────────────────────────────────────────────────
+  if (authLoading) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans', system-ui, sans-serif", background:"#f4f6fa" }}>
+      <div style={{ fontSize:16, color:"#6b7280" }}>Loading...</div>
+    </div>
+  );
+  if (!authUser) return <LoginScreen />;
+  if (!userProfile) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans', system-ui, sans-serif", background:"#f4f6fa" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontSize:16, color:"#374151", marginBottom:16 }}>Account not configured. Contact your administrator.</div>
+        <button onClick={() => signOut(auth)} style={{ padding:"9px 20px", background:"#dc2626", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Sign Out</button>
+      </div>
+    </div>
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
