@@ -30,7 +30,7 @@ import {
   deleteObject,
 } from "firebase/storage";
 
-const storage = getStorage(app);
+
 
 // ── Firebase init ────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -45,6 +45,7 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+const storage = getStorage(app);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // Returns the Firestore path root for an instance's data
