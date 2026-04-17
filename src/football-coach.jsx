@@ -416,7 +416,7 @@ const initialPlayers = [
   { id:9, name:"Jack",   position:"WR" }, { id:10, name:"Tate",   position:"WR" },
 ];
 
-const TABS = ["Play Logger","Play Log","Analytics","Game Summary","Report Cards","Manage","Team"];
+const TABS = ["Play Logger","Play Log","Analytics","Game Summary","Report Cards","Team","Settings"];
 const successOutcomes = new Set(["TD","Reception - Gain","Run - Gain"]);
 
 // ── Badge ────────────────────────────────────────────────────────────────────
@@ -801,6 +801,14 @@ const handleLogoDelete = async () => {
   const [newUserName,     setNewUserName]     = useState("");
   const [newUserRole,     setNewUserRole]     = useState("coach");
   const [teamMsg,         setTeamMsg]         = useState("");
+  const [manageDropdownOpen, setManageDropdownOpen] = useState(false);
+
+  useEffect(() => {
+  if (!manageDropdownOpen) return;
+  const handle = () => setManageDropdownOpen(false);
+  document.addEventListener("mousedown", handle);
+  return () => document.removeEventListener("mousedown", handle);
+}, [manageDropdownOpen]);
 
   // ── Computed / analytics ─────────────────────────────────────────────────
   const filteredPlays = useMemo(() => {
@@ -1005,16 +1013,25 @@ const handleLogoDelete = async () => {
                 {userProfile?.name || authUser?.email} · {userProfile?.role === "admin" ? "Admin" : "Coach"}
               </div>
             </div>
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-              <button onClick={handleImportFromLocalStorage} disabled={importing}
-                style={{ padding:"7px 14px", background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, fontWeight:700, fontSize:12, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit" }}>
-                {importing ? "Importing..." : "⬆ Import Local Data"}
-              </button>
-              <button onClick={() => signOut(auth)}
-                style={{ padding:"7px 14px", background:"rgba(220,38,38,0.2)", color:"#fca5a5", border:"1px solid rgba(220,38,38,0.3)", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-                Sign Out
-              </button>
-            </div>
+           <div style={{ position:"relative" }}>
+            <button onClick={() => setManageDropdownOpen(o => !o)}
+              style={{ padding:"7px 14px", background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6 }}>
+              ⚙️ Manage <span style={{ fontSize:10 }}>▼</span>
+            </button>
+            {manageDropdownOpen && (
+              <div style={{ position:"absolute", right:0, top:"calc(100% + 8px)", background:"#fff", borderRadius:12, border:"1.5px solid #e5e7eb", boxShadow:"0 8px 32px rgba(0,0,0,0.12)", minWidth:160, zIndex:100, overflow:"hidden" }}>
+                <button onClick={() => { setTab("Settings"); setManageDropdownOpen(false); }}
+                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                  ⚙️ Settings
+                </button>
+                <div style={{ height:"1px", background:"#e5e7eb" }} />
+                <button onClick={() => signOut(auth)}
+                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                  🚪 Sign Out
+                </button>
+              </div>
+            )}
+          </div>
           </div>
           {/* Tabs */}
           <div style={{ display:"flex", gap:2, overflowX:"auto" }}>
@@ -1961,7 +1978,7 @@ const handleLogoDelete = async () => {
         )}
 
         {/* ───── MANAGE TAB ───── */}
-        {tab === "Manage" && (
+        {tab === "Settings" && (
           <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
 
             {/* Logo Upload */}
@@ -2227,6 +2244,9 @@ const handleLogoDelete = async () => {
                   URL.revokeObjectURL(url);
                 }} style={{ padding:"9px 18px", background:THEME.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>
                   ⬇ Export Backup
+                </button><button onClick={handleImportFromLocalStorage} disabled={importing}
+                  style={{ padding:"9px 18px", background:"#e0f2fe", color:"#0369a1", border:"none", borderRadius:8, fontWeight:700, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13 }}>
+                  {importing ? "Importing..." : "⬆ Import Local Data"}
                 </button>
               </div>
             </div>
