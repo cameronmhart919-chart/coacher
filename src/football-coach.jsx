@@ -416,7 +416,7 @@ const initialPlayers = [
   { id:9, name:"Jack",   position:"WR" }, { id:10, name:"Tate",   position:"WR" },
 ];
 
-const TABS = ["Play Logger","Play Log","Analytics","Game Summary","Report Cards","Team","Settings"];
+const TABS = ["Play Logger","Play Log","Analytics","Game Summary","Report Cards","Team"];
 const successOutcomes = new Set(["TD","Reception - Gain","Run - Gain"]);
 
 // ── Badge ────────────────────────────────────────────────────────────────────
@@ -1019,7 +1019,7 @@ const handleLogoDelete = async () => {
               ⚙️ Manage <span style={{ fontSize:10 }}>▼</span>
             </button>
             {manageDropdownOpen && (
-              <div style={{ position:"absolute", right:0, top:"calc(100% + 8px)", background:"#fff", borderRadius:12, border:"1.5px solid #e5e7eb", boxShadow:"0 8px 32px rgba(0,0,0,0.12)", minWidth:160, zIndex:100, overflow:"hidden" }}>
+              <div onMouseDown={e => e.stopPropagation()} style={{ position:"absolute", right:0, top:"calc(100% + 8px)", background:"#fff", borderRadius:12, border:"1.5px solid #e5e7eb", boxShadow:"0 8px 32px rgba(0,0,0,0.12)", minWidth:160, zIndex:100, overflow:"hidden" }}>
                 <button onClick={() => { setTab("Settings"); setManageDropdownOpen(false); }}
                   style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
                   ⚙️ Settings
