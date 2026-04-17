@@ -22,6 +22,16 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
+
+const storage = getStorage(app);
+
 // ── Firebase init ────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -51,7 +61,7 @@ function SharedGameView() {
   } catch {
     return <div style={{ padding: 40, textAlign: "center", color: "#dc2626" }}>Invalid share link.</div>;
   }
-  const { game, score, plays, defPlays: gdPlays = [], players, tdOutcome } = data;
+  const { game, score, plays, defPlays: gdPlays = [], players, tdOutcome, logoUrl } = data;
   const totalYards = plays.reduce((a, b) => a + (Number(b.yardsGained) || 0), 0);
   const tds        = plays.filter(p => p.outcome === tdOutcome).length;
   const isPassPlay = p => p.playType === "Pass";
@@ -195,10 +205,13 @@ function SharedGameView() {
         </div>
         <div id="share-content" style={{ display:"flex", flexDirection:"column", gap:20, padding:8 }}>
           <div style={{ background:"linear-gradient(135deg, #000 0%, #111 100%)", borderRadius:16, padding:"20px 28px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div>
-              <div style={{ fontSize:22, fontWeight:900, color:"#fff" }}>{game}</div>
-              <div style={{ fontSize:13, color:"#a8b8c8", marginTop:2 }}>Game Summary · {plays.length} off / {gdPlays.length} def plays</div>
-            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              {logoUrl && <img src={logoUrl} alt="logo" style={{ width:44, height:44, objectFit:"cover", borderRadius:10 }} />}
+          <div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#fff" }}>{game}</div>
+            <div style={{ fontSize:13, color:"#a8b8c8", marginTop:2 }}>Game Summary · {plays.length} off / {gdPlays.length} def plays</div>
+          </div>
+        </div>
             {(score.us !== "" || score.them !== "") && (
               <div style={{ textAlign:"center" }}>
                 <div style={{ fontSize:32, fontWeight:900, color:"#fff" }}>{score.us} — {score.them}</div>
@@ -533,6 +546,8 @@ export default function FootballCoach() {
   const [gameScores,    setGameScores]    = useState({});
   const [coachNotes,    setCoachNotes]    = useState({});
   const [tdOutcome,     setTdOutcome]     = useState("TD");
+  const [logoUrl, setLogoUrl] = useState(null);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [teamUsers,     setTeamUsers]     = useState([]);
   const [dataLoading,   setDataLoading]   = useState(true);
 
@@ -571,7 +586,11 @@ export default function FootballCoach() {
     listenDoc("config/playerActions", snap => setPlayerActions(snap.playerActions || DEFAULT_PLAYER_ACTIONS));
     listenDoc("config/gameScores",    snap => setGameScores(snap || {}));
     listenDoc("config/coachNotes",    snap => setCoachNotes(snap || {}));
-    listenDoc("config/settings",      snap => { if (snap.tdOutcome) setTdOutcome(snap.tdOutcome); });
+    listenDoc("config/settings", snap => { 
+      if (snap.tdOutcome) setTdOutcome(snap.tdOutcome); 
+      if (snap.logoUrl) setLogoUrl(snap.logoUrl);
+      else setLogoUrl(null);
+    });
 
     // Listen to team users
     const usersUnsub = onSnapshot(
@@ -636,6 +655,34 @@ export default function FootballCoach() {
   const saveDefOutcomes   = (val) => { setDefOutcomes(val);   saveConfig("defOutcomes",   { defOutcomes: val }); };
   const savePlayerActions = (val) => { setPlayerActions(val); saveConfig("playerActions", { playerActions: val }); };
   const saveTdOutcome     = (val) => { setTdOutcome(val);     saveConfig("settings",      { tdOutcome: val }); };
+
+  const handleLogoUpload = async (file) => {
+  if (!base || !file) return;
+  setLogoUploading(true);
+  try {
+    const storageRef = ref(storage, `instances/${instanceId}/logo`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    setLogoUrl(url);
+    await setDoc(doc(db, base, "config/settings"), { logoUrl: url }, { merge: true });
+  } catch (e) {
+    alert("Logo upload failed: " + e.message);
+  } finally {
+    setLogoUploading(false);
+  }
+};
+
+const handleLogoDelete = async () => {
+  if (!base) return;
+  try {
+    const storageRef = ref(storage, `instances/${instanceId}/logo`);
+    await deleteObject(storageRef);
+    setLogoUrl(null);
+    await setDoc(doc(db, base, "config/settings"), { logoUrl: null }, { merge: true });
+  } catch (e) {
+    alert("Logo delete failed: " + e.message);
+  }
+};
 
   const saveGameScore = async (game, score) => {
     if (!base) return;
@@ -945,8 +992,11 @@ export default function FootballCoach() {
       <div style={{ background:THEME.headerBg, boxShadow:"0 4px 24px rgba(0,0,0,0.18)" }}>
         <div style={{ maxWidth:960, margin:"0 auto", padding:"22px 24px 0" }}>
           <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20 }}>
-            <div style={{ width:44, height:44, borderRadius:12, background:"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <span style={{ fontSize:28 }}>🏈</span>
+           <div style={{ width:44, height:44, borderRadius:12, background:"transparent", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+          {logoUrl 
+           ? <img src={logoUrl} alt="Team logo" style={{ width:44, height:44, objectFit:"cover", borderRadius:12 }} />
+            : <span style={{ fontSize:28 }}>🏈</span>
+           }
             </div>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:22, fontWeight:900, color:"#fff", letterSpacing:-0.5 }}>Coacher</div>
@@ -1667,7 +1717,7 @@ export default function FootballCoach() {
               const topPerfs = Object.values(perfMap).sort((a,b)=>b.yards-a.yards).slice(0,3);
 
               // Share link
-              const shareData = { game, score, plays:gPlays, defPlays:gDPlays, players, tdOutcome };
+              const shareData = { game, score, plays:gPlays, defPlays:gDPlays, players, tdOutcome, logoUrl };
               const shareLink = `${window.location.origin}${window.location.pathname}?share=${btoa(encodeURIComponent(JSON.stringify(shareData)))}`;
 
               return (
@@ -1913,6 +1963,34 @@ export default function FootballCoach() {
         {tab === "Manage" && (
           <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
 
+            {/* Logo Upload */}
+<div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Team Logo</div>
+  <div style={{ fontSize:12, color:"#6b7280", marginBottom:16 }}>Upload your team logo. Appears in the header, game summaries, and PDF exports. Admin only.</div>
+  {userProfile?.role === "admin" && (
+    <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+      {logoUrl && (
+        <img src={logoUrl} alt="Team logo" style={{ width:80, height:80, objectFit:"cover", borderRadius:12, border:"1.5px solid #e5e7eb" }} />
+      )}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <label style={{ padding:"9px 18px", background:THEME.buttonBg, color:"#fff", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+          {logoUploading ? "Uploading..." : logoUrl ? "Replace Logo" : "Upload Logo"}
+          <input type="file" accept="image/*" style={{ display:"none" }} disabled={logoUploading}
+            onChange={e => { const file = e.target.files[0]; if (file) handleLogoUpload(file); e.target.value=""; }} />
+        </label>
+        {logoUrl && (
+          <button onClick={() => { if(window.confirm("Delete team logo?")) handleLogoDelete(); }}
+            style={{ padding:"9px 18px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+            Remove Logo
+          </button>
+        )}
+      </div>
+    </div>
+  )}
+  {userProfile?.role !== "admin" && (
+    <div style={{ fontSize:13, color:"#9ca3af" }}>Only admins can upload a logo.</div>
+  )}
+</div>
             {/* Games */}
             <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
               <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Games</div>
