@@ -416,7 +416,7 @@ const initialPlayers = [
   { id:9, name:"Jack",   position:"WR" }, { id:10, name:"Tate",   position:"WR" },
 ];
 
-const TABS = ["Play Logger","Play Log","Analytics","Game Summary","Report Cards","Team"];
+const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Team"];
 const successOutcomes = new Set(["TD","Reception - Gain","Run - Gain"]);
 
 // ── Badge ────────────────────────────────────────────────────────────────────
@@ -1050,7 +1050,7 @@ const handleLogoDelete = async () => {
       <div style={{ maxWidth:960, margin:"0 auto", padding:"28px 24px" }}>
 
         {/* ───── PLAY LOGGER TAB ───── */}
-        {tab === "Play Logger" && (
+        {tab === "Log a Play +" && (
           <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
             {/* Offense / Defense sub-toggle */}
             <div style={{ display:"flex", gap:8 }}>
@@ -1292,7 +1292,7 @@ const handleLogoDelete = async () => {
         )}
 
         {/* ───── PLAY LOG TAB ───── */}
-        {tab === "Play Log" && (() => {
+        {tab === "Play History" && (() => {
           const allPlays = [
             ...plays.map(p    => ({ ...p, side:"offense" })),
             ...defPlays.map(p => ({ ...p, side:"defense" })),
