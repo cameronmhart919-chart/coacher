@@ -899,8 +899,8 @@ const handleLogoDelete = async () => {
         if (isXP3)  s.xp3++;
         // Receptions = any outcome where ball was caught (not Inc/Drop/INT/TA/Sack)
         if (isReception) s.receptions++;
-        // Rec+ = TD, XP, or any reception with yardsGained >= 0
-        if (isTD || isXP || (isReception && !isXP && p.yardsGained >= 0)) s.recGain++;
+        // Rec+ = outcome is literally Reception - Gain, TD, or XP
+        if (isTD || isXP || o === "Reception - Gain") s.recGain++;
         // Yards = yardsGained on all receptions (caught passes including TD and XP)
         if (isReception) s.yards += p.yardsGained || 0;
       }
@@ -919,8 +919,8 @@ const handleLogoDelete = async () => {
         if (isXP3)  s.xp3++;
         // Receptions + pass yards on caught balls
         if (isReception) { s.receptions++; s.passYards += p.yardsGained || 0; }
-        // Rec+ = TD, XP, or reception with yardsGained >= 0
-        if (isTD || isXP || (isReception && !isXP && p.yardsGained >= 0)) s.recGain++;
+        // Rec+ = outcome is literally Reception - Gain, TD, or XP
+        if (isTD || isXP || o === "Reception - Gain") s.recGain++;
       }
 
       // ── RUNNER stats ──
