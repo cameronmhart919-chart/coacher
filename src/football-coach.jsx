@@ -877,8 +877,9 @@ const handleLogoDelete = async () => {
       const isINT = o === "Interception" || o === "INT";
       const isTA  = o === "Throw Away";
       const isSack = o === "Sack";
-      // A reception = any outcome that is NOT Inc/Drop/INT/TA/Sack
-      const isReception = !isInc && !isDrop && !isINT && !isTA && !isSack && o !== "";
+      // A reception = any outcome where ball was caught (not Inc/Drop/INT/TA/Sack/XP Missed)
+      const isXPMissed = o === "XP Missed - 1pt" || o === "XP Missed - 2pt" || o === "XP Missed - 3pt";
+      const isReception = !isInc && !isDrop && !isINT && !isTA && !isSack && !isXPMissed && o !== "";
       // Rec+ = TD, XP1/2/3, Reception-Gain, or any positive-yards reception
       const isRecGain = isTD || isXP || (!isInc && !isDrop && !isINT && !isTA && !isSack && o !== "" && !isXP && p.yardsGained >= 0) || isTD;
 
