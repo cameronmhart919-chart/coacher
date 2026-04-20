@@ -1706,6 +1706,115 @@ const handleLogoDelete = async () => {
                     </table>
                   </div>
                 )}
+              {/* Stats by Game table */}
+                {(() => {
+                  const byGame = {};
+                  filteredPlays.forEach(p => {
+                    if (!byGame[p.game]) byGame[p.game] = {
+                      attempts:0, receptions:0, recGain:0, incompletions:0,
+                      drops:0, throwAways:0, sacks:0, ints:0,
+                      runs:0, runGain:0, runLoss:0, tds:0,
+                      xp1:0, xp2:0, xp3:0, yards:0,
+                    };
+                    const s = byGame[p.game];
+                    const o = (p.outcome || "").trim();
+                    const TD = tdOutcome;
+                    const isPass = p.playType === "Pass";
+                    const isRun  = !isPass;
+                    const isXP1 = o === "XP Converted - 1pt";
+                    const isXP2 = o === "XP Converted - 2pt";
+                    const isXP3 = o === "XP Converted - 3pt";
+                    const isXP  = isXP1 || isXP2 || isXP3;
+                    const isTD  = o === TD;
+                    const isInc = o === "Incomplete";
+                    const isDrop = o === "Drop";
+                    const isINT = o === "Interception" || o === "INT";
+                    const isTA  = o === "Throw Away";
+                    const isSack = o === "Sack";
+                    const isXPMissed = o === "XP Missed - 1pt" || o === "XP Missed - 2pt" || o === "XP Missed - 3pt";
+                    const isReception = !isInc && !isDrop && !isINT && !isTA && !isSack && !isXPMissed && o !== "";
+
+                    if (isPass && p.thrower) {
+                      s.attempts++;
+                      if (isINT)  s.ints++;
+                      if (isTA)   s.throwAways++;
+                      if (isSack) s.sacks++;
+                      if (isDrop) s.drops++;
+                      if (isInc)  s.incompletions++;
+                      if (isTD)   s.tds++;
+                      if (isXP1)  s.xp1++;
+                      if (isXP2)  s.xp2++;
+                      if (isXP3)  s.xp3++;
+                      if (isReception) { s.receptions++; s.yards += p.yardsGained || 0; }
+                      if (isTD || isXP || o === "Reception - Gain") s.recGain++;
+                    }
+                    if (isRun && p.carrier) {
+                      s.runs++;
+                      s.yards += p.yardsGained || 0;
+                      if (o === "Run - Gain" || isTD) s.runGain++;
+                      if (o === "Run - Loss") s.runLoss++;
+                      if (isTD) s.tds++;
+                    }
+                  });
+
+                  const gameRows = Object.entries(byGame).filter(([g, s]) => s.attempts + s.runs > 0);
+                  if (gameRows.length === 0) return null;
+
+                  const gt = { attempts:0, receptions:0, recGain:0, incompletions:0, drops:0, throwAways:0, sacks:0, ints:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, yards:0 };
+                  gameRows.forEach(([, s]) => { Object.keys(gt).forEach(k => { gt[k] += s[k] || 0; }); });
+
+                  return (
+                    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
+                      <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Stats by Game</div>
+                      <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Offensive stats broken down per game.</div>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
+                        <thead><tr style={{ background:THEME.buttonBg }}>
+                          {["Game","Att","Rec","Cmp%","Rec+","Inc","Drops","T/A","Sacks","INTs","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
+                            <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center" }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {gameRows.map(([game, s], i) => {
+                            const cmpPct = s.attempts > 0 ? `${Math.round(s.receptions/s.attempts*100)}%` : "—";
+                            return (
+                              <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                                <td style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{game}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.attempts||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.receptions||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{cmpPct}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.recGain||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.incompletions||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.drops||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.throwAways||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.sacks||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.runs||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.runGain||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{s.runLoss||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp1||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp2||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp3||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{s.yards>0?`+${s.yards}`:s.yards||"—"}</td>
+                              </tr>
+                            );
+                          })}
+                          {(() => {
+                            const cmpPct = gt.attempts > 0 ? `${Math.round(gt.receptions/gt.attempts*100)}%` : "—";
+                            return (
+                              <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                                <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                {[gt.attempts,gt.receptions,cmpPct,gt.recGain,gt.incompletions,gt.drops,gt.throwAways,gt.sacks,gt.ints,gt.runs,gt.runGain,gt.runLoss,gt.tds,gt.xp1,gt.xp2,gt.xp3,gt.yards].map((v,i) => (
+                                  <td key={i} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{v||"—"}</td>
+                                ))}
+                              </tr>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </>)}
             </>)}
 
