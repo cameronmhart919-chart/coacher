@@ -416,7 +416,7 @@ const initialPlayers = [
   { id:9, name:"Jack",   position:"WR" }, { id:10, name:"Tate",   position:"WR" },
 ];
 
-const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Team"];
+const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards"];
 const successOutcomes = new Set(["TD","Reception - Gain","Run - Gain"]);
 
 // ── Badge ────────────────────────────────────────────────────────────────────
@@ -1023,6 +1023,11 @@ const handleLogoDelete = async () => {
                 <button onClick={() => { setTab("Settings"); setManageDropdownOpen(false); }}
                   style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
                   ⚙️ Settings
+                </button>
+                <div style={{ height:"1px", background:"#e5e7eb" }} />
+                <button onClick={() => { setTab("Team"); setManageDropdownOpen(false); }}
+                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                  👥 Team
                 </button>
                 <div style={{ height:"1px", background:"#e5e7eb" }} />
                 <button onClick={() => signOut(auth)}
