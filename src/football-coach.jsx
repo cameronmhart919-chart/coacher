@@ -2076,6 +2076,104 @@ const handleLogoDelete = async () => {
                           </div>
                         </div>
                       )}
+
+                      {/* Defense section */}
+                      {gDPlays.length > 0 && (() => {
+                        const dTotalYds = gDPlays.reduce((a,b) => a+(Number(b.yardsAllowed)||0), 0);
+                        const dTDs      = gDPlays.filter(p => (p.outcome||"").trim() === "Touchdown Allowed").length;
+                        const dSacks    = gDPlays.filter(p => ["Sack - Time","Sack - Blitz"].includes((p.outcome||"").trim())).length;
+                        const dINTs     = gDPlays.filter(p => (p.outcome||"").trim() === "INT").length;
+                        const dPass     = gDPlays.filter(p => p.playType === "Pass");
+                        const dRun      = gDPlays.filter(p => p.playType === "Run");
+                        const dPassYds  = dPass.reduce((a,b) => a+(Number(b.yardsAllowed)||0), 0);
+                        const dRunYds   = dRun.reduce((a,b)  => a+(Number(b.yardsAllowed)||0), 0);
+
+                        const dOutcomes = {};
+                        gDPlays.forEach(p => { const o=(p.outcome||"").trim(); if(o) dOutcomes[o]=(dOutcomes[o]||0)+1; });
+
+                        const dPlayerMap = {};
+                        gDPlays.forEach(p => {
+                          const a=(p.playerAction||"").trim(); if(!a||!p.player) return;
+                          const pl=players.find(x=>x.id===Number(p.player)); if(!pl) return;
+                          if(!dPlayerMap[p.player]) dPlayerMap[p.player]={name:pl.name,position:pl.position,pbu:0,flagPull:0,intAction:0,sackAction:0};
+                          const s=dPlayerMap[p.player];
+                          if(a==="PBU")s.pbu++; if(a==="Flag Pull")s.flagPull++; if(a==="INT")s.intAction++; if(a==="Sack")s.sackAction++;
+                        });
+                        const dPlayerRows = Object.values(dPlayerMap).filter(p=>p.pbu||p.flagPull||p.intAction||p.sackAction).sort((a,b)=>a.name.localeCompare(b.name));
+
+                        return (
+                          <div>
+                            <div style={{ fontSize:13, fontWeight:800, color:"#dc2626", textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>Defense</div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12, marginBottom:16 }}>
+                              <StatCard label="Plays Defended" value={gDPlays.length} />
+                              <StatCard label="Yards Allowed"  value={dTotalYds} sub={`${gDPlays.length>0?(dTotalYds/gDPlays.length).toFixed(1):0} yds/play`} accent="#dc2626" />
+                              <StatCard label="TDs Allowed"    value={dTDs} accent="#dc2626" />
+                              <StatCard label="Sacks / INTs"   value={`${dSacks} / ${dINTs}`} accent="#059669" />
+                            </div>
+
+                            {/* Pass vs Run */}
+                            <div style={{ marginBottom:16 }}>
+                              <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>Pass vs Run Allowed</div>
+                              {[["Pass", dPass.length, dPassYds], ["Run", dRun.length, dRunYds]].map(([type, count, yards]) => {
+                                const pct = gDPlays.length > 0 ? Math.round(count/gDPlays.length*100) : 0;
+                                return (
+                                  <div key={type} style={{ marginBottom:8 }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3 }}>
+                                      <span style={{ fontWeight:600 }}>{type}</span>
+                                      <span style={{ color:"#9ca3af" }}>{count} plays · {count>0?(yards/count).toFixed(1):0} yds/play · {pct}%</span>
+                                    </div>
+                                    <div style={{ height:6, background:"#f3f4f6", borderRadius:99 }}>
+                                      <div style={{ height:"100%", width:`${pct}%`, background:"#dc2626", borderRadius:99 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Outcomes */}
+                            {Object.keys(dOutcomes).length > 0 && (
+                              <div style={{ marginBottom:16 }}>
+                                <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>Outcomes</div>
+                                <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                                  {Object.entries(dOutcomes).sort((a,b)=>b[1]-a[1]).map(([outcome, count]) => {
+                                    const pct = Math.round(count/gDPlays.length*100);
+                                    const isNeg = ["Touchdown Allowed","Pass Allowed - Gain","Run - Gain","XP Allowed"].includes(outcome);
+                                    return (
+                                      <div key={outcome} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                        <span style={{ fontSize:11, fontWeight:700, background:isNeg?"#fee2e2":"#d1fae5", color:isNeg?"#991b1b":"#065f46", padding:"2px 8px", borderRadius:999, minWidth:160 }}>{outcome}</span>
+                                        <div style={{ flex:1, height:6, background:"#f3f4f6", borderRadius:99 }}>
+                                          <div style={{ height:"100%", width:`${pct}%`, background:isNeg?"#dc2626":"#059669", borderRadius:99 }} />
+                                        </div>
+                                        <span style={{ fontSize:11, color:"#9ca3af", width:20, textAlign:"right" }}>{count}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Player actions */}
+                            {dPlayerRows.length > 0 && (
+                              <div>
+                                <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>Player Actions</div>
+                                <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                                  {dPlayerRows.map((p,i) => (
+                                    <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:"#f8fafc", borderRadius:8 }}>
+                                      <div style={{ flex:1, fontSize:12, fontWeight:700, color:"#111827" }}>{p.name}</div>
+                                      <div style={{ display:"flex", gap:6 }}>
+                                        {p.pbu>0      && <span style={{ fontSize:10, fontWeight:700, background:"#e0e7ff", color:"#4338ca", padding:"1px 6px", borderRadius:999 }}>{p.pbu} PBU</span>}
+                                        {p.flagPull>0  && <span style={{ fontSize:10, fontWeight:700, background:"#dbeafe", color:"#1d4ed8", padding:"1px 6px", borderRadius:999 }}>{p.flagPull} Flag</span>}
+                                        {p.intAction>0 && <span style={{ fontSize:10, fontWeight:700, background:"#d1fae5", color:"#065f46", padding:"1px 6px", borderRadius:999 }}>{p.intAction} INT</span>}
+                                        {p.sackAction>0&& <span style={{ fontSize:10, fontWeight:700, background:"#d1fae5", color:"#065f46", padding:"1px 6px", borderRadius:999 }}>{p.sackAction} Sack</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -2218,6 +2316,62 @@ const handleLogoDelete = async () => {
                           </table>
                         </div>
                       )}
+                      {/* Defensive Stats */}
+                      {(() => {
+                        const plDefPlays = defPlays.filter(p => p.player === String(pl.id) && p.playerAction);
+                        if (plDefPlays.length === 0) return null;
+                        const dStats = { pbu:0, flagPull:0, intAction:0, sackAction:0 };
+                        plDefPlays.forEach(p => {
+                          const a = (p.playerAction||"").trim();
+                          if(a==="PBU") dStats.pbu++;
+                          if(a==="Flag Pull") dStats.flagPull++;
+                          if(a==="INT") dStats.intAction++;
+                          if(a==="Sack") dStats.sackAction++;
+                        });
+                        const defByGame = {};
+                        plDefPlays.forEach(p => {
+                          if(!defByGame[p.game]) defByGame[p.game]={pbu:0,flagPull:0,intAction:0,sackAction:0};
+                          const s=defByGame[p.game]; const a=(p.playerAction||"").trim();
+                          if(a==="PBU")s.pbu++; if(a==="Flag Pull")s.flagPull++; if(a==="INT")s.intAction++; if(a==="Sack")s.sackAction++;
+                        });
+                        return (
+                          <div>
+                            <div style={{ fontSize:14, fontWeight:800, color:"#dc2626", marginBottom:12 }}>Defensive Stats</div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:10, marginBottom:16 }}>
+                              {[["PBUs",dStats.pbu,"#6366f1"],["Flag Pulls",dStats.flagPull,"#4a6fa5"],["INTs",dStats.intAction,"#059669"],["Sacks",dStats.sackAction,"#059669"]].map(([label,val,color]) => (
+                                <div key={label} style={{ background:"#f8fafc", borderRadius:10, padding:"10px 12px", textAlign:"center" }}>
+                                  <div style={{ fontSize:20, fontWeight:900, color }}>{val}</div>
+                                  <div style={{ fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:0.5 }}>{label}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {Object.keys(defByGame).length > 1 && (
+                              <div>
+                                <div style={{ fontSize:13, fontWeight:700, color:"#374151", marginBottom:8 }}>By Game</div>
+                                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                                  <thead><tr style={{ background:"#f8fafc" }}>
+                                    {["Game","PBUs","Flags","INTs","Sacks"].map(h => (
+                                      <th key={h} style={{ padding:"7px 10px", textAlign:h==="Game"?"left":"center", fontWeight:700, color:"#9ca3af", fontSize:11, textTransform:"uppercase" }}>{h}</th>
+                                    ))}
+                                  </tr></thead>
+                                  <tbody>
+                                    {Object.entries(defByGame).map(([g,d],i) => (
+                                      <tr key={g} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                                        <td style={{ padding:"8px 10px", fontWeight:600 }}>{g}</td>
+                                        <td style={{ padding:"8px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{d.pbu||"—"}</td>
+                                        <td style={{ padding:"8px 10px", textAlign:"center", color:"#4a6fa5", fontWeight:700 }}>{d.flagPull||"—"}</td>
+                                        <td style={{ padding:"8px 10px", textAlign:"center" }}>{d.intAction>0?<Badge color="green">{d.intAction}</Badge>:"—"}</td>
+                                        <td style={{ padding:"8px 10px", textAlign:"center" }}>{d.sackAction>0?<Badge color="green">{d.sackAction}</Badge>:"—"}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       <div>
                         <div style={{ fontSize:14, fontWeight:800, color:"#111827", marginBottom:8 }}>Coach Notes</div>
                         <textarea value={note} onChange={e => saveCoachNote(pl.id, e.target.value)}
