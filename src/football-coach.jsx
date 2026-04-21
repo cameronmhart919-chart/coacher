@@ -51,16 +51,24 @@ const storage = getStorage(app);
 // Returns the Firestore path root for an instance's data
 const instanceData = (instanceId) => `data/${instanceId}`;
 
-// ── Shared game view (read-only, decoded from URL) ───────────────────────────
+// ── Shared game view (read-only, decoded from URL or sessionStorage) ──────────
 function SharedGameView() {
   const params  = new URLSearchParams(window.location.search);
   const encoded = params.get("share");
-  if (!encoded) return null;
+  const isPdf   = params.get("pdf") === "1";
   let data;
   try {
-    data = JSON.parse(decodeURIComponent(atob(encoded)));
+    if (isPdf) {
+      const stored = sessionStorage.getItem("coacher_pdf_data");
+      if (!stored) return <div style={{ padding:40, textAlign:"center", color:"#dc2626" }}>No PDF data found. Please try again.</div>;
+      data = JSON.parse(stored);
+    } else if (encoded) {
+      data = JSON.parse(decodeURIComponent(atob(encoded)));
+    } else {
+      return null;
+    }
   } catch {
-    return <div style={{ padding: 40, textAlign: "center", color: "#dc2626" }}>Invalid share link.</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: "#dc2626" }}>Invalid data.</div>;
   }
   const { game, score, plays, defPlays: gdPlays = [], players, tdOutcome, logoUrl } = data;
   const totalYards = plays.reduce((a, b) => a + (Number(b.yardsGained) || 0), 0);
@@ -511,7 +519,8 @@ function LoginScreen() {
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function FootballCoach() {
   // Show shared game view if ?share= param is present
-  if (new URLSearchParams(window.location.search).get("share")) return <SharedGameView />;
+  const _sp = new URLSearchParams(window.location.search);
+  if (_sp.get("share") || _sp.get("pdf") === "1") return <SharedGameView />;
 
   // ── Auth state ──────────────────────────────────────────────────────────────
   const [authUser,    setAuthUser]    = useState(null);   // Firebase user object
@@ -780,18 +789,10 @@ const handleLogoDelete = async () => {
   const [pdfGenerating, setPdfGenerating] = useState(null); // game name currently generating
 
   const generateGamePDF = (game, shareData) => {
-    setPdfGenerating(game);
-    const loadScript = (src) => new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) return resolve();
-      const s = document.createElement("script"); s.src = src; s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-    // Store share data in sessionStorage so the share route can read it
-    const encoded = btoa(encodeURIComponent(JSON.stringify(shareData)));
-    const shareUrl = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
-    // Open in new tab — user can download PDF from there
-    window.open(shareUrl, "_blank");
-    setPdfGenerating(null);
+    // Store data in sessionStorage (no URL length limit)
+    sessionStorage.setItem("coacher_pdf_data", JSON.stringify(shareData));
+    const pdfUrl = `${window.location.origin}${window.location.pathname}?pdf=1`;
+    window.open(pdfUrl, "_blank");
   };
 
   // ── Local UI state ───────────────────────────────────────────────────────
