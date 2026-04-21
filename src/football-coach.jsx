@@ -650,6 +650,27 @@ export default function FootballCoach() {
   // Wrappers that save config and update local state for instant UI response
   const savePlayers       = (val) => { setPlayers(val);       saveConfig("players",       { players: val }); };
   const saveGames         = (val) => { setGames(val);         saveConfig("games",         { games: val }); };
+
+  const renameGameAndPlays = async (oldName, newName) => {
+    if (!base || !newName.trim() || oldName === newName.trim()) return;
+    const updated = games.map(g => g === oldName ? newName.trim() : g);
+    saveGames(updated);
+    // Batch update all offensive plays with the old game name
+    const offPlaysToUpdate = plays.filter(p => p.game === oldName);
+    const defPlaysToUpdate = defPlays.filter(p => p.game === oldName);
+    const batchSize = 400;
+    const allUpdates = [
+      ...offPlaysToUpdate.map(p => ({ col: "plays", id: p.id })),
+      ...defPlaysToUpdate.map(p => ({ col: "defPlays", id: p.id })),
+    ];
+    for (let i = 0; i < allUpdates.length; i += batchSize) {
+      const batch = writeBatch(db);
+      allUpdates.slice(i, i + batchSize).forEach(({ col, id }) => {
+        batch.update(doc(db, base, col, id), { game: newName.trim() });
+      });
+      await batch.commit();
+    }
+  };
   const savePlayCodes     = (val) => { setPlayCodes(val);     saveConfig("playCodes",     { playCodes: val }); };
   const savePositions     = (val) => { setPositions(val);     saveConfig("positions",     { positions: val }); };
   const saveOutcomes      = (val) => { setOutcomes(val);      saveConfig("outcomes",      { outcomes: val }); };
@@ -2259,8 +2280,8 @@ const handleLogoDelete = async () => {
                       <>
                         <input autoFocus style={{ ...inputStyle, flex:1, padding:"4px 8px", fontSize:13 }} value={editingGame.value}
                           onChange={e => setEditingGame(eg => ({ ...eg, value:e.target.value }))}
-                          onKeyDown={e => { if(e.key==="Enter"){const v=editingGame.value.trim();if(v){const ng=[...games];ng[i]=v;saveGames(ng);}setEditingGame(null);} if(e.key==="Escape")setEditingGame(null); }} />
-                        <button onClick={() => { const v=editingGame.value.trim();if(v){const ng=[...games];ng[i]=v;saveGames(ng);}setEditingGame(null); }} style={{ border:"none", background:"#d1fae5", color:"#065f46", borderRadius:6, padding:"3px 8px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
+                          onKeyDown={e => { if(e.key==="Enter"){const v=editingGame.value.trim();if(v){renameGameAndPlays(g,v);}setEditingGame(null);} if(e.key==="Escape")setEditingGame(null); }} />
+                        <button onClick={() => { const v=editingGame.value.trim();if(v){renameGameAndPlays(g,v);}setEditingGame(null); }} style={{ border:"none", background:"#d1fae5", color:"#065f46", borderRadius:6, padding:"3px 8px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
                         <button onClick={() => setEditingGame(null)} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:15, padding:0 }}>×</button>
                       </>
                     ) : (
