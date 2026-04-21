@@ -776,6 +776,24 @@ const handleLogoDelete = async () => {
     }
   };
 
+  // ── PDF generation ─────────────────────────────────────────────────────────
+  const [pdfGenerating, setPdfGenerating] = useState(null); // game name currently generating
+
+  const generateGamePDF = (game, shareData) => {
+    setPdfGenerating(game);
+    const loadScript = (src) => new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement("script"); s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    // Store share data in sessionStorage so the share route can read it
+    const encoded = btoa(encodeURIComponent(JSON.stringify(shareData)));
+    const shareUrl = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+    // Open in new tab — user can download PDF from there
+    window.open(shareUrl, "_blank");
+    setPdfGenerating(null);
+  };
+
   // ── Local UI state ───────────────────────────────────────────────────────
   const [tab, setTab] = useState("Play Logger");
 
@@ -1989,10 +2007,6 @@ const handleLogoDelete = async () => {
               });
               const topPerfs = Object.values(perfMap).sort((a,b)=>b.yards-a.yards).slice(0,3);
 
-              // Share link
-              const shareData = { game, score, plays:gPlays, defPlays:gDPlays, players, tdOutcome, logoUrl };
-              const shareLink = `${window.location.origin}${window.location.pathname}?share=${btoa(encodeURIComponent(JSON.stringify(shareData)))}`;
-
               return (
                 <div key={game} style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", overflow:"hidden" }}>
                   {/* Game header */}
@@ -2020,9 +2034,10 @@ const handleLogoDelete = async () => {
                           <option value="T" style={{ color:"#6b7280" }}>T</option>
                         </select>
                       </div>
-                      <button onClick={() => { navigator.clipboard.writeText(shareLink); alert("Share link copied!"); }}
+                      <button
+                        onClick={() => generateGamePDF(game, { game, score, plays:gPlays, defPlays:gDPlays, players, tdOutcome, logoUrl })}
                         style={{ padding:"7px 14px", background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-                        🔗 Share
+                        ⬇ Download PDF
                       </button>
                     </div>
                   </div>
