@@ -235,8 +235,8 @@ function SharedGameView() {
             {card("Touchdowns", tds)}
           </div>
           {throwers.length > 0 && (
-            <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:20, overflowX:"auto" }}>
-              <div style={{ fontSize:14, fontWeight:800, color:"#111827", marginBottom:12 }}>Throwers</div>
+            <CollapsibleSection title="Throwers">
+              <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                 <thead><tr style={{ background:"#1a2f5e" }}>
                   {["Player","Pos","Att","Rec","Cmp%","TD%","INT%","Rec+","Rec-","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
@@ -270,10 +270,11 @@ function SharedGameView() {
                 </tbody>
               </table>
             </div>
+            </CollapsibleSection>
           )}
           {recRunners.length > 0 && (
-            <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:20, overflowX:"auto" }}>
-              <div style={{ fontSize:14, fontWeight:800, color:"#111827", marginBottom:12 }}>Receivers & Runners</div>
+            <CollapsibleSection title="Receivers & Runners">
+              <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
                 <thead><tr style={{ background:"#1a2f5e" }}>
                   {["Player","Pos","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
@@ -309,6 +310,7 @@ function SharedGameView() {
                 </tbody>
               </table>
             </div>
+            </CollapsibleSection>
           )}
           {gdPlays.length > 0 && (<>
             <div style={{ fontSize:13, fontWeight:900, color:"#dc2626", textTransform:"uppercase", letterSpacing:1 }}>Defense</div>
@@ -424,7 +426,7 @@ const initialPlayers = [
   { id:9, name:"Jack",   position:"WR" }, { id:10, name:"Tate",   position:"WR" },
 ];
 
-const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Team"];
+const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards"];
 const successOutcomes = new Set(["TD","Reception - Gain","Run - Gain"]);
 
 // ── Badge ────────────────────────────────────────────────────────────────────
@@ -456,6 +458,27 @@ function StatCard({ label, value, sub, accent }) {
       <div style={{ fontSize:11, fontWeight:700, color:"#9ca3af", letterSpacing:1, textTransform:"uppercase" }}>{label}</div>
       <div style={{ fontSize:28, fontWeight:900, color:"#111827", lineHeight:1.1 }}>{value}</div>
       {sub && <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── CollapsibleSection ───────────────────────────────────────────────────────
+function CollapsibleSection({ title, subtitle, accentColor, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", overflow:"hidden" }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        width:"100%", padding:"16px 24px", background:"none", border:"none", cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"space-between", fontFamily:"inherit",
+        borderLeft: accentColor ? `4px solid ${accentColor}` : undefined,
+      }}>
+        <div style={{ textAlign:"left" }}>
+          <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>{title}</div>
+          {subtitle && <div style={{ fontSize:12, color:"#9ca3af", marginTop:2 }}>{subtitle}</div>}
+        </div>
+        <span style={{ fontSize:18, color:"#9ca3af", transform:open?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.2s" }}>▾</span>
+      </button>
+      {open && <div style={{ padding:"0 24px 24px" }}>{children}</div>}
     </div>
   );
 }
@@ -1101,6 +1124,11 @@ const handleLogoDelete = async () => {
                   ⚙️ Settings
                 </button>
                 <div style={{ height:"1px", background:"#e5e7eb" }} />
+                <button onClick={() => { setTab("Team"); setManageDropdownOpen(false); }}
+                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                  👥 Team
+                </button>
+                <div style={{ height:"1px", background:"#e5e7eb" }} />
                 <button onClick={() => signOut(auth)}
                   style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
                   🚪 Sign Out
@@ -1557,8 +1585,7 @@ const handleLogoDelete = async () => {
 
                 {/* Play type breakdown */}
                 {Object.entries(analytics.byType).length > 0 && (
-                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Play Type Breakdown</div>
+                  <CollapsibleSection title="Play Type Breakdown">
                     {Object.entries(analytics.byType).map(([type, d]) => {
                       const pct = Math.round(d.count / analytics.total * 100);
                       const sucPct = d.count > 0 ? Math.round(d.success / d.count * 100) : 0;
@@ -1574,14 +1601,13 @@ const handleLogoDelete = async () => {
                         </div>
                       );
                     })}
-                  </div>
+                  </CollapsibleSection>
                 )}
 
                 {/* Throwers table */}
                 {Object.values(analytics.byPlayer).some(p => p.isThrower) && (
-                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Stats by Player — Throwers</div>
-                    <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Att = Pass attempts (excl. TA/Sack) · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att · Rec+ = TD/XP/positive gain</div>
+                  <CollapsibleSection title="Stats by Player — Throwers" subtitle="Att = Pass attempts · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att">
+                    <div style={{ overflowX:"auto" }}> · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att · Rec+ = TD/XP/positive gain</div>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {["Player","Pos","Att","Rec","Cmp%","INT%","Rec+","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
@@ -1629,13 +1655,13 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                   </div>
+                  </CollapsibleSection>
                 )}
 
                 {/* Receivers & Runners table */}
                 {Object.values(analytics.byPlayer).some(p=>(p.isReceiver||p.isRunner)) && (
-                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Stats by Player — Receivers & Runners</div>
-                    <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Att = Times targeted · Rec = Receptions · Cmp% = Rec/Att · Rec+ = TD/XP/positive gain · Runs = Run+ + Run-</div>
+                  <CollapsibleSection title="Stats by Player — Receivers & Runners" subtitle="Att = Times targeted · Rec = Receptions · Cmp% = Rec/Att">
+                    <div style={{ overflowX:"auto" }}> · Rec = Receptions · Cmp% = Rec/Att · Rec+ = TD/XP/positive gain · Runs = Run+ + Run-</div>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {["Player","Pos","Att","Rec","Cmp%","Rec+","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Total Yds","Pass Yds","Run Yds"].map((h,i) => (
@@ -1687,13 +1713,13 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                   </div>
+                  </CollapsibleSection>
                 )}
 
                 {/* Stats by Play Code table */}
                 {Object.keys(analytics.byCode).length > 0 && (
-                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Stats by Play Code</div>
-                    <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Full breakdown of every play code used this season.</div>
+                  <CollapsibleSection title="Stats by Play Code" subtitle="Full breakdown of every play code used this season.">
+                    <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {["Code","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","T/A","Sacks","INTs","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
@@ -1745,6 +1771,7 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                   </div>
+                  </CollapsibleSection>
                 )}
               {/* Stats by Game table */}
                 {(() => {
@@ -1804,9 +1831,8 @@ const handleLogoDelete = async () => {
                   gameRows.forEach(([, s]) => { Object.keys(gt).forEach(k => { gt[k] += s[k] || 0; }); });
 
                   return (
-                    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
-                      <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Stats by Game</div>
-                      <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Offensive stats broken down per game.</div>
+                    <CollapsibleSection title="Stats by Game" subtitle="Offensive stats broken down per game.">
+                    <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
                           {["Game","Att","Rec","Cmp%","Rec+","Inc","Drops","T/A","Sacks","INTs","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
@@ -1853,6 +1879,7 @@ const handleLogoDelete = async () => {
                         </tbody>
                       </table>
                     </div>
+                  </CollapsibleSection>
                   );
                 })()}
               </>)}
@@ -1912,8 +1939,8 @@ const handleLogoDelete = async () => {
                   <StatCard label="TDs Allowed"     value={tdAllowed}  accent="#dc2626" />
                   <StatCard label="Sacks / INTs"    value={`${sackTime+sackBlitz} / ${intOutcome}`} sub={`Time: ${sackTime} · Blitz: ${sackBlitz}`} accent="#059669" />
                 </div>
-                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Pass vs Run Allowed</div>
+                <CollapsibleSection title="Pass vs Run Allowed">
+                  <div style={{ overflowX:"auto" }}>
                   {[["Pass",passPlaysD.length,passYdsD],["Run",runPlaysD.length,runYdsD]].map(([type,count,yards]) => {
                     const pct = totalPlays>0?Math.round(count/totalPlays*100):0;
                     return (
@@ -1930,8 +1957,8 @@ const handleLogoDelete = async () => {
                   })}
                 </div>
                 {Object.keys(outcomeCounts).length > 0 && (
-                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Play Outcomes</div>
+                  <CollapsibleSection title="Play Outcomes">
+                  <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead><tr style={{ background:"#dc2626" }}>
                         {["Outcome","Count","% of Plays"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center" }}>{h}</th>)}
@@ -1951,10 +1978,11 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                   </div>
+                </CollapsibleSection>
                 )}
                 {Object.values(byDPlayer).length > 0 && (
-                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24, overflowX:"auto" }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Player Actions</div>
+                  <CollapsibleSection title="Player Actions">
+                  <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead><tr style={{ background:"#dc2626" }}>
                         {["Player","Pos","PBUs","Flags Pulled","INTs","Sacks"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i<2?"left":"center" }}>{h}</th>)}
@@ -1973,10 +2001,12 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                   </div>
+                </CollapsibleSection>
                 )}
               </>);
             })()}
           </div>
+                </CollapsibleSection>
         )}
 
         {/* ───── GAME SUMMARY TAB ───── */}
@@ -2058,8 +2088,7 @@ const handleLogoDelete = async () => {
                             <StatCard label="Avg Yds" value={(gPlays.length>0?totalYards/gPlays.length:0).toFixed(1)} />
                           </div>
                           {topPerfs.length > 0 && (
-                            <div>
-                              <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:10 }}>Top Performers</div>
+                            <CollapsibleSection title="Top Performers">
                               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                                 {topPerfs.map((p,i) => (
                                   <div key={i} style={{ background:"#f8fafc", borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
@@ -2071,10 +2100,9 @@ const handleLogoDelete = async () => {
                                   </div>
                                 ))}
                               </div>
-                            </div>
+                            </CollapsibleSection>
                           )}
-                          <div style={{ marginTop:16 }}>
-                            <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:10 }}>Outcomes</div>
+                          <CollapsibleSection title="Outcomes">
                             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                               {Object.entries(resultBreakdown).sort((a,b)=>b[1]-a[1]).map(([outcome,count]) => {
                                 const pct = Math.round(count/gPlays.length*100);
@@ -2089,7 +2117,7 @@ const handleLogoDelete = async () => {
                                 );
                               })}
                             </div>
-                          </div>
+                          </CollapsibleSection>
                         </div>
                       )}
 
@@ -2128,8 +2156,7 @@ const handleLogoDelete = async () => {
                             </div>
 
                             {/* Pass vs Run */}
-                            <div style={{ marginBottom:16 }}>
-                              <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>Pass vs Run Allowed</div>
+                            <CollapsibleSection title="Pass vs Run Allowed">
                               {[["Pass", dPass.length, dPassYds], ["Run", dRun.length, dRunYds]].map(([type, count, yards]) => {
                                 const pct = gDPlays.length > 0 ? Math.round(count/gDPlays.length*100) : 0;
                                 return (
@@ -2144,12 +2171,11 @@ const handleLogoDelete = async () => {
                                   </div>
                                 );
                               })}
-                            </div>
+                            </CollapsibleSection>
 
                             {/* Outcomes */}
                             {Object.keys(dOutcomes).length > 0 && (
-                              <div style={{ marginBottom:16 }}>
-                                <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>Outcomes</div>
+                              <CollapsibleSection title="Outcomes">
                                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
                                   {Object.entries(dOutcomes).sort((a,b)=>b[1]-a[1]).map(([outcome, count]) => {
                                     const pct = Math.round(count/gDPlays.length*100);
@@ -2165,13 +2191,12 @@ const handleLogoDelete = async () => {
                                     );
                                   })}
                                 </div>
-                              </div>
+                              </CollapsibleSection>
                             )}
 
                             {/* Player actions */}
                             {dPlayerRows.length > 0 && (
-                              <div>
-                                <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>Player Actions</div>
+                              <CollapsibleSection title="Player Actions">
                                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
                                   {dPlayerRows.map((p,i) => (
                                     <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", background:"#f8fafc", borderRadius:8 }}>
@@ -2185,7 +2210,7 @@ const handleLogoDelete = async () => {
                                     </div>
                                   ))}
                                 </div>
-                              </div>
+                              </CollapsibleSection>
                             )}
                           </div>
                         );
@@ -2291,8 +2316,7 @@ const handleLogoDelete = async () => {
                       <button onClick={() => setSelectedPlayer(null)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:18, fontFamily:"inherit" }}>×</button>
                     </div>
                     <div style={{ padding:28, display:"flex", flexDirection:"column", gap:24 }}>
-                      <div>
-                        <div style={{ fontSize:14, fontWeight:800, color:"#111827", marginBottom:12 }}>Full Stat Line</div>
+                      <CollapsibleSection title="Full Stat Line">
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:10 }}>
                           {[["Attempts",stats.attempts],["Receptions",stats.receptions],["Rec+",stats.recGain],["Rec-",stats.recLoss],["Inc",stats.incompletions],["Runs",stats.runs],["Run+",stats.runGain],["Run-",stats.runLoss],["TDs",stats.tds],["INTs",stats.ints],["Drops",stats.drops],["T/A",stats.throwAways],["Sacks",stats.sacks],["Yards",stats.yards]].map(([label,val]) => (
                             <div key={label} style={{ background:"#f8fafc", borderRadius:10, padding:"10px 12px", textAlign:"center" }}>
@@ -2301,7 +2325,7 @@ const handleLogoDelete = async () => {
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </CollapsibleSection>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
                         <div style={{ background:"#f0fdf4", borderRadius:12, padding:16, border:"1px solid #bbf7d0" }}>
                           <div style={{ fontSize:13, fontWeight:800, color:"#065f46", marginBottom:10 }}>💪 Strengths</div>
@@ -2313,8 +2337,7 @@ const handleLogoDelete = async () => {
                         </div>
                       </div>
                       {Object.keys(byGame).length > 0 && (
-                        <div>
-                          <div style={{ fontSize:14, fontWeight:800, color:"#111827", marginBottom:12 }}>Game-by-Game Breakdown</div>
+                        <CollapsibleSection title="Game-by-Game Breakdown">
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                             <thead><tr style={{ background:"#f8fafc" }}>
                               {["Game","Plays","Yards","TDs"].map(h => <th key={h} style={{ padding:"8px 12px", textAlign:h==="Game"?"left":"center", fontWeight:700, color:"#9ca3af", fontSize:11, textTransform:"uppercase" }}>{h}</th>)}
@@ -2330,7 +2353,7 @@ const handleLogoDelete = async () => {
                               ))}
                             </tbody>
                           </table>
-                        </div>
+                        </CollapsibleSection>
                       )}
                       {/* Defensive Stats */}
                       {(() => {
@@ -2351,8 +2374,7 @@ const handleLogoDelete = async () => {
                           if(a==="PBU")s.pbu++; if(a==="Flag Pull")s.flagPull++; if(a==="INT")s.intAction++; if(a==="Sack")s.sackAction++;
                         });
                         return (
-                          <div>
-                            <div style={{ fontSize:14, fontWeight:800, color:"#dc2626", marginBottom:12 }}>Defensive Stats</div>
+                          <CollapsibleSection title="Defensive Stats" accentColor="#dc2626">
                             <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:10, marginBottom:16 }}>
                               {[["PBUs",dStats.pbu,"#6366f1"],["Flag Pulls",dStats.flagPull,"#4a6fa5"],["INTs",dStats.intAction,"#059669"],["Sacks",dStats.sackAction,"#059669"]].map(([label,val,color]) => (
                                 <div key={label} style={{ background:"#f8fafc", borderRadius:10, padding:"10px 12px", textAlign:"center" }}>
@@ -2384,7 +2406,7 @@ const handleLogoDelete = async () => {
                                 </table>
                               </div>
                             )}
-                          </div>
+                          </CollapsibleSection>
                         );
                       })()}
 
