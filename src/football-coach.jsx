@@ -1940,7 +1940,6 @@ const handleLogoDelete = async () => {
                   <StatCard label="Sacks / INTs"    value={`${sackTime+sackBlitz} / ${intOutcome}`} sub={`Time: ${sackTime} · Blitz: ${sackBlitz}`} accent="#059669" />
                 </div>
                 <CollapsibleSection title="Pass vs Run Allowed">
-                  <div style={{ overflowX:"auto" }}>
                   {[["Pass",passPlaysD.length,passYdsD],["Run",runPlaysD.length,runYdsD]].map(([type,count,yards]) => {
                     const pct = totalPlays>0?Math.round(count/totalPlays*100):0;
                     return (
@@ -1955,10 +1954,9 @@ const handleLogoDelete = async () => {
                       </div>
                     );
                   })}
-                </div>
+                </CollapsibleSection>
                 {Object.keys(outcomeCounts).length > 0 && (
                   <CollapsibleSection title="Play Outcomes">
-                  <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead><tr style={{ background:"#dc2626" }}>
                         {["Outcome","Count","% of Plays"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center" }}>{h}</th>)}
@@ -1977,12 +1975,10 @@ const handleLogoDelete = async () => {
                         })}
                       </tbody>
                     </table>
-                  </div>
-                </CollapsibleSection>
+                  </CollapsibleSection>
                 )}
                 {Object.values(byDPlayer).length > 0 && (
                   <CollapsibleSection title="Player Actions">
-                  <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead><tr style={{ background:"#dc2626" }}>
                         {["Player","Pos","PBUs","Flags Pulled","INTs","Sacks"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i<2?"left":"center" }}>{h}</th>)}
@@ -2000,13 +1996,11 @@ const handleLogoDelete = async () => {
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                </CollapsibleSection>
+                  </CollapsibleSection>
                 )}
               </>);
             })()}
           </div>
-                </CollapsibleSection>
         )}
 
         {/* ───── GAME SUMMARY TAB ───── */}
