@@ -1607,7 +1607,7 @@ const handleLogoDelete = async () => {
                 {/* Throwers table */}
                 {Object.values(analytics.byPlayer).some(p => p.isThrower) && (
                   <CollapsibleSection title="Stats by Player — Throwers" subtitle="Att = Pass attempts · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att">
-                    <div style={{ overflowX:"auto" }}> · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att · Rec+ = TD/XP/positive gain</div>
+                    <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {["Player","Pos","Att","Rec","Cmp%","INT%","Rec+","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
@@ -1654,14 +1654,14 @@ const handleLogoDelete = async () => {
                         })()}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
                   </CollapsibleSection>
                 )}
 
                 {/* Receivers & Runners table */}
                 {Object.values(analytics.byPlayer).some(p=>(p.isReceiver||p.isRunner)) && (
                   <CollapsibleSection title="Stats by Player — Receivers & Runners" subtitle="Att = Times targeted · Rec = Receptions · Cmp% = Rec/Att">
-                    <div style={{ overflowX:"auto" }}> · Rec = Receptions · Cmp% = Rec/Att · Rec+ = TD/XP/positive gain · Runs = Run+ + Run-</div>
+                    <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {["Player","Pos","Att","Rec","Cmp%","Rec+","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Total Yds","Pass Yds","Run Yds"].map((h,i) => (
