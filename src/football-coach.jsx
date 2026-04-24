@@ -754,53 +754,68 @@ const handleLogoDelete = async () => {
 
   // ── localStorage → Firestore import ─────────────────────────────────────
   const [importing, setImporting] = useState(false);
+  const [sortConfigs, setSortConfigs] = useState({});
 
-  const handleImportFromLocalStorage = async () => {
-    if (!base) return;
+  const getSortedRows = (tableKey, rows, defaultKey) => {
+    const cfg = sortConfigs[tableKey];
+    if (!cfg) return rows;
+    return [...rows].sort((a, b) => {
+      let aVal = a[cfg.key]; let bVal = b[cfg.key];
+      if (aVal === undefined || aVal === null) aVal = "";
+      if (bVal === undefined || bVal === null) bVal = "";
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        return cfg.dir === "asc" ? aVal - bVal : bVal - aVal;
+      }
+      const cmp = String(aVal).localeCompare(String(bVal));
+      return cfg.dir === "asc" ? cmp : -cmp;
+    });
+  };
+
+  const handleSort = (tableKey, colKey) => {
+    setSortConfigs(prev => {
+      const cur = prev[tableKey];
+      if (cur && cur.key === colKey) {
+        return { ...prev, [tableKey]: { key: colKey, dir: cur.dir === "asc" ? "desc" : "asc" } };
+      }
+      return { ...prev, [tableKey]: { key: colKey, dir: "asc" } };
+    });
+  };
+
+  const SortTh = ({ tableKey, colKey, children, left }) => {
+    const cfg = sortConfigs[tableKey];
+    const active = cfg && cfg.key === colKey;
+    const arrow = active ? (cfg.dir === "asc" ? " ▲" : " ▼") : " ⇅";
+    return (
+      <th onClick={() => handleSort(tableKey, colKey)} style={{ padding:"9px 10px", textAlign:left?"left":"center", fontWeight:700, color:"#fff", fontSize:11, letterSpacing:0.4, textTransform:"uppercase", whiteSpace:"nowrap", cursor:"pointer", userSelect:"none", background:active?"rgba(255,255,255,0.15)":"transparent" }}>
+        {children}{arrow}
+      </th>
+    );
+  };
+
+  const handleImportJSON = async (file) => {
+    if (!base || !file) return;
     setImporting(true);
     try {
-      const get = (key, def) => { try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; } catch { return def; } };
-      const lsPlays    = get("coachlog_plays", []);
-      const lsDefPlays = get("coachlog_defplays", []);
-      const lsPlayers  = get("coachlog_players", null);
-      const lsGames    = get("coachlog_games", null);
-      const lsCodes    = get("coachlog_playcodes", null);
-      const lsPos      = get("coachlog_positions", null);
-      const lsOut      = get("coachlog_outcomes", null);
-      const lsDefOut   = get("coachlog_defoutcomes", null);
-      const lsPA       = get("coachlog_playeractions", null);
-      const lsScores   = get("coachlog_gamescores", null);
-      const lsNotes    = get("coachlog_coachnotes", null);
-      const lsTd       = get("coachlog_tdoutcome", null);
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const importedPlays    = data.plays    || [];
+      const importedDefPlays = data.defPlays || [];
 
-      const batch = writeBatch(db);
+      // Batch write in chunks of 400 (Firestore limit is 500)
+      const allWrites = [
+        ...importedPlays.map(p    => ({ col: "plays",    data: { ...p, timestamp: p.timestamp || new Date().toISOString() } })),
+        ...importedDefPlays.map(p => ({ col: "defPlays", data: { ...p, timestamp: p.timestamp || new Date().toISOString() } })),
+      ];
+      for (let i = 0; i < allWrites.length; i += 400) {
+        const batch = writeBatch(db);
+        allWrites.slice(i, i + 400).forEach(({ col, data: d }) => {
+          const ref = doc(collection(db, base, col));
+          batch.set(ref, d);
+        });
+        await batch.commit();
+      }
 
-      // Batch write plays
-      lsPlays.forEach(p => {
-        const ref = doc(collection(db, base, "plays"));
-        batch.set(ref, { ...p, timestamp: p.timestamp || new Date().toISOString() });
-      });
-      lsDefPlays.forEach(p => {
-        const ref = doc(collection(db, base, "defPlays"));
-        batch.set(ref, { ...p, timestamp: p.timestamp || new Date().toISOString() });
-      });
-
-      // Commit plays in chunks (Firestore batch limit = 500)
-      await batch.commit();
-
-      // Config docs
-      if (lsPlayers)  await setDoc(doc(db, base, "config/players"),       { players: lsPlayers }, { merge: true });
-      if (lsGames)    await setDoc(doc(db, base, "config/games"),          { games: lsGames }, { merge: true });
-      if (lsCodes)    await setDoc(doc(db, base, "config/playCodes"),      { playCodes: lsCodes }, { merge: true });
-      if (lsPos)      await setDoc(doc(db, base, "config/positions"),      { positions: lsPos }, { merge: true });
-      if (lsOut)      await setDoc(doc(db, base, "config/outcomes"),       { outcomes: lsOut }, { merge: true });
-      if (lsDefOut)   await setDoc(doc(db, base, "config/defOutcomes"),    { defOutcomes: lsDefOut }, { merge: true });
-      if (lsPA)       await setDoc(doc(db, base, "config/playerActions"),  { playerActions: lsPA }, { merge: true });
-      if (lsScores)   await setDoc(doc(db, base, "config/gameScores"),     lsScores, { merge: true });
-      if (lsNotes)    await setDoc(doc(db, base, "config/coachNotes"),     lsNotes, { merge: true });
-      if (lsTd)       await setDoc(doc(db, base, "config/settings"),       { tdOutcome: lsTd }, { merge: true });
-
-      alert(`✅ Import complete! ${lsPlays.length} offensive and ${lsDefPlays.length} defensive plays migrated to the cloud.`);
+      alert(`✅ Import complete! ${importedPlays.length} offensive and ${importedDefPlays.length} defensive plays added.`);
     } catch (e) {
       alert("Import failed: " + e.message);
     } finally {
@@ -1610,12 +1625,14 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        {["Player","Pos","Att","Rec","Cmp%","INT%","Rec+","Inc","TDs","INTs","Drops","T/A","Sacks","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
-                          <th key={h} style={{ ...thStyle, textAlign:i<2?"left":"center" }}>{h}</th>
+                        <SortTh tableKey="throwers" colKey="name" left>Player</SortTh>
+                        <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>
+                        {[["att","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["intPct","INT%"],["recGain","Rec+"],["incompletions","Inc"],["tds","TDs"],["ints","INTs"],["drops","Drops"],["throwAways","T/A"],["sacks","Sacks"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["yards","Yards"]].map(([k,h]) => (
+                          <SortTh key={k} tableKey="throwers" colKey={k}>{h}</SortTh>
                         ))}
                       </tr></thead>
                       <tbody>
-                        {Object.values(analytics.byPlayer).filter(p=>p.isThrower).sort((a,b)=>a.name.localeCompare(b.name)).map((p,i) => (
+                        {getSortedRows("throwers", Object.values(analytics.byPlayer).filter(p=>p.isThrower).map(p => ({ ...p, cmpPct: p.attempts>0?p.receptions/p.attempts:0, intPct: p.attempts>0?p.ints/p.attempts:0, att:p.attempts })), "name").map((p,i) => (
                           <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
                             <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
                             <td style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
@@ -1664,36 +1681,34 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        {["Player","Pos","Att","Rec","Cmp%","Rec+","Drops","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Total Yds","Pass Yds","Run Yds"].map((h,i) => (
-                          <th key={h} style={{ ...thStyle, textAlign:i<2?"left":"center" }}>{h}</th>
+                        <SortTh tableKey="recrun" colKey="name" left>Player</SortTh>
+                        <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>
+                        {[["attempts","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["recGain","Rec+"],["drops","Drops"],["runs","Runs"],["runGain","Run+"],["runLoss","Run-"],["tds","TDs"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["totalYds","Total Yds"],["passYards","Pass Yds"],["runYards","Run Yds"]].map(([k,h]) => (
+                          <SortTh key={k} tableKey="recrun" colKey={k}>{h}</SortTh>
                         ))}
                       </tr></thead>
                       <tbody>
-                        {Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)).sort((a,b)=>a.name.localeCompare(b.name)).map((p,i) => {
-                          const r = p.recRunStats;
-                          const totalYds = (r.passYards||0) + (r.runYards||0);
-                          return (
+                        {getSortedRows("recrun", Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)).map(p => ({ name:p.name, position:p.position, attempts:p.recRunStats.attempts||0, receptions:p.recRunStats.receptions||0, cmpPct:p.recRunStats.attempts>0?p.recRunStats.receptions/p.recRunStats.attempts:0, recGain:p.recRunStats.recGain||0, drops:p.recRunStats.drops||0, runs:p.recRunStats.runs||0, runGain:p.recRunStats.runGain||0, runLoss:p.recRunStats.runLoss||0, tds:p.recRunStats.tds||0, xp1:p.recRunStats.xp1||0, xp2:p.recRunStats.xp2||0, xp3:p.recRunStats.xp3||0, totalYds:(p.recRunStats.passYards||0)+(p.recRunStats.runYards||0), passYards:p.recRunStats.passYards||0, runYards:p.recRunStats.runYards||0 })), "name").map((p,i) => (
                             <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
                               <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
                               <td style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.attempts||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.receptions||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{r.attempts>0?`${Math.round(r.receptions/r.attempts*100)}%`:"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{r.recGain||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.drops||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.runs||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{r.runGain||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{r.runLoss||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.tds>0?<Badge color="green">{r.tds}</Badge>:"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{r.xp1||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{r.xp2||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{r.xp3||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{totalYds>0?`+${totalYds}`:totalYds||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#4a6fa5" }}>{r.passYards>0?`+${r.passYards}`:r.passYards||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.runYards>0?`+${r.runYards}`:r.runYards||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.attempts||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.receptions||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.recGain||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.drops||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.runs||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.runGain||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{p.runLoss||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp1||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp2||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp3||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{p.totalYds>0?`+${p.totalYds}`:p.totalYds||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#4a6fa5" }}>{p.passYards>0?`+${p.passYards}`:p.passYards||"—"}</td>
+                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.runYards>0?`+${p.runYards}`:p.runYards||"—"}</td>
                             </tr>
-                          );
-                        })}
+                        ))}
                         {(() => {
                           const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver || p.isRunner));
                           const t = { attempts:0, receptions:0, recGain:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, passYards:0, runYards:0 };
@@ -1722,12 +1737,13 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        {["Code","Att","Rec","Cmp%","TD%","Rec+","Rec-","Inc","Drops","T/A","Sacks","INTs","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
-                          <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center" }}>{h}</th>
+                        <SortTh tableKey="playcodes" colKey="code" left>Code</SortTh>
+                        {[["attempts","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["tdPct","TD%"],["recGain","Rec+"],["recLoss","Rec-"],["incompletions","Inc"],["drops","Drops"],["throwAways","T/A"],["sacks","Sacks"],["ints","INTs"],["runs","Runs"],["runGain","Run+"],["runLoss","Run-"],["tds","TDs"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["yards","Yards"]].map(([k,h]) => (
+                          <SortTh key={k} tableKey="playcodes" colKey={k}>{h}</SortTh>
                         ))}
                       </tr></thead>
                       <tbody>
-                        {Object.values(analytics.byCode).sort((a,b) => a.code.localeCompare(b.code)).map((s,i) => {
+                        {getSortedRows("playcodes", Object.values(analytics.byCode).map(s => ({ ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0, tdPct:s.attempts>0?s.tds/s.attempts:0 })), "code").map((s,i) => {
                           const cmpPct = s.attempts > 0 ? `${Math.round(s.receptions/s.attempts*100)}%` : "—";
                           const tdPct  = s.attempts > 0 ? `${(s.tds/s.attempts*100).toFixed(1)}%` : "—";
                           return (
@@ -1835,19 +1851,19 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
-                          {["Game","Att","Rec","Cmp%","Rec+","Inc","Drops","T/A","Sacks","INTs","Runs","Run+","Run-","TDs","XP-1","XP-2","XP-3","Yards"].map((h,i) => (
-                            <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center" }}>{h}</th>
+                          <SortTh tableKey="bygame" colKey="game" left>Game</SortTh>
+                          {[["attempts","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["recGain","Rec+"],["incompletions","Inc"],["drops","Drops"],["throwAways","T/A"],["sacks","Sacks"],["ints","INTs"],["runs","Runs"],["runGain","Run+"],["runLoss","Run-"],["tds","TDs"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["yards","Yards"]].map(([k,h]) => (
+                            <SortTh key={k} tableKey="bygame" colKey={k}>{h}</SortTh>
                           ))}
                         </tr></thead>
                         <tbody>
-                          {gameRows.map(([game, s], i) => {
-                            const cmpPct = s.attempts > 0 ? `${Math.round(s.receptions/s.attempts*100)}%` : "—";
+                          {getSortedRows("bygame", gameRows.map(([game, s]) => ({ game, ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0 })), "game").map((s, i) => {
                             return (
                               <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                                <td style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{game}</td>
+                                <td style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.game}</td>
                                 <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.attempts||"—"}</td>
                                 <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.receptions||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{cmpPct}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>
                                 <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.recGain||"—"}</td>
                                 <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.incompletions||"—"}</td>
                                 <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.drops||"—"}</td>
@@ -2685,10 +2701,12 @@ const handleLogoDelete = async () => {
                   URL.revokeObjectURL(url);
                 }} style={{ padding:"9px 18px", background:THEME.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>
                   ⬇ Export Backup
-                </button><button onClick={handleImportFromLocalStorage} disabled={importing}
-                  style={{ padding:"9px 18px", background:"#e0f2fe", color:"#0369a1", border:"none", borderRadius:8, fontWeight:700, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13 }}>
-                  {importing ? "Importing..." : "⬆ Import Local Data"}
                 </button>
+                <label style={{ padding:"9px 18px", background:importing?"#e5e7eb":"#e0f2fe", color:importing?"#9ca3af":"#0369a1", borderRadius:8, fontWeight:700, fontSize:13, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit" }}>
+                  {importing ? "Importing..." : "⬆ Import JSON"}
+                  <input type="file" accept=".json" style={{ display:"none" }} disabled={importing}
+                    onChange={e => { const f = e.target.files[0]; if (f) handleImportJSON(f); e.target.value=""; }} />
+                </label>
               </div>
             </div>
 
