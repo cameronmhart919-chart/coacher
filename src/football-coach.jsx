@@ -582,6 +582,8 @@ export default function FootballCoach() {
   const [logoUrl, setLogoUrl] = useState(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const [teamUsers,     setTeamUsers]     = useState([]);
+  const [customMetrics, setCustomMetrics] = useState([]);
+  const [settingsSubTab, setSettingsSubTab] = useState("general");
   const [dataLoading,   setDataLoading]   = useState(true);
 
   // ── Subscribe to Firestore collections ──────────────────────────────────
@@ -624,6 +626,7 @@ export default function FootballCoach() {
       if (snap.logoUrl) setLogoUrl(snap.logoUrl);
       else setLogoUrl(null);
     });
+    listenDoc("config/customMetrics", snap => setCustomMetrics(snap.metrics || []));
 
     // Listen to team users
     const usersUnsub = onSnapshot(
@@ -709,6 +712,7 @@ export default function FootballCoach() {
   const saveDefOutcomes   = (val) => { setDefOutcomes(val);   saveConfig("defOutcomes",   { defOutcomes: val }); };
   const savePlayerActions = (val) => { setPlayerActions(val); saveConfig("playerActions", { playerActions: val }); };
   const saveTdOutcome     = (val) => { setTdOutcome(val);     saveConfig("settings",      { tdOutcome: val }); };
+  const saveCustomMetrics = (metrics) => { setCustomMetrics(metrics); saveConfig("customMetrics", { metrics }); };
 
   const handleLogoUpload = async (file) => {
   if (!base || !file) return;
@@ -874,6 +878,10 @@ const handleLogoDelete = async () => {
   const [editingPlayerAction, setEditingPlayerAction] = useState(null);
 
   // Team tab state
+  // Metric builder state
+  const [editingMetric,    setEditingMetric]    = useState(null); // null = closed, {} = new, {...} = editing
+  const [metricForm,       setMetricForm]       = useState({ name:"", side:"offense", valueType:"count", breakdowns:["player"], outcomes:[] });
+
   const [newUserEmail,    setNewUserEmail]    = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserName,     setNewUserName]     = useState("");
@@ -2233,6 +2241,141 @@ const handleLogoDelete = async () => {
           </div>
         )}
 
+        {/* ───── CUSTOM METRICS TAB (inline in Analytics) ───── */}
+        {tab === "Analytics" && customMetrics.length > 0 && (() => {
+          const allPlaysByGame = filterGame === "All" ? plays : plays.filter(p => p.game === filterGame);
+          const allDefByGame   = filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame);
+
+          return (
+            <div style={{ display:"flex", flexDirection:"column", gap:20, marginTop:8 }}>
+              <div style={{ fontSize:13, fontWeight:900, color:THEME.primaryDark, textTransform:"uppercase", letterSpacing:1 }}>Custom Metrics</div>
+              {customMetrics.map(metric => {
+                const isOff  = metric.side === "offense" || metric.side === "both";
+                const isDef  = metric.side === "defense" || metric.side === "both";
+                const srcPlays    = isOff ? allPlaysByGame : [];
+                const srcDefPlays = isDef ? allDefByGame   : [];
+                const allSrcPlays = [...srcPlays.map(p => ({ ...p, _side:"offense" })), ...srcDefPlays.map(p => ({ ...p, _side:"defense" }))];
+                const matchingPlays = allSrcPlays.filter(p => (metric.outcomes||[]).includes((p.outcome||"").trim()));
+
+                const computeVal = (playsArr) => {
+                  const count = playsArr.length;
+                  const yards = playsArr.reduce((a,b) => a + (Number(b.yardsGained||b.yardsAllowed)||0), 0);
+                  if (metric.valueType === "count") return { count };
+                  if (metric.valueType === "yards") return { yards };
+                  return { count, yards };
+                };
+
+                const breakdowns = metric.breakdowns || ["player"];
+
+                // By Player
+                const byPlayerMap = {};
+                if (breakdowns.includes("player")) {
+                  matchingPlays.forEach(p => {
+                    const pids = p._side === "offense"
+                      ? [p.thrower, p.receiver, p.carrier].filter(Boolean)
+                      : [p.player].filter(Boolean);
+                    pids.forEach(pid => {
+                      const pl = players.find(x => x.id === Number(pid)); if (!pl) return;
+                      if (!byPlayerMap[pid]) byPlayerMap[pid] = { name:pl.name, position:pl.position, plays:[] };
+                      byPlayerMap[pid].plays.push(p);
+                    });
+                  });
+                }
+
+                // By Game
+                const byGameMap = {};
+                if (breakdowns.includes("game")) {
+                  matchingPlays.forEach(p => {
+                    if (!byGameMap[p.game]) byGameMap[p.game] = { game:p.game, plays:[] };
+                    byGameMap[p.game].plays.push(p);
+                  });
+                }
+
+                // By Play Code
+                const byCodeMap = {};
+                if (breakdowns.includes("playCode")) {
+                  matchingPlays.filter(p => p.playCode).forEach(p => {
+                    if (!byCodeMap[p.playCode]) byCodeMap[p.playCode] = { code:p.playCode, plays:[] };
+                    byCodeMap[p.playCode].plays.push(p);
+                  });
+                }
+
+                const valCols = metric.valueType === "count" ? ["Count"]
+                  : metric.valueType === "yards" ? ["Yards"]
+                  : ["Count","Yards"];
+
+                const renderTable = (rows, labelKey, labelHeader) => (
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                      <thead><tr style={{ background:THEME.buttonBg }}>
+                        <th style={{ ...thStyle, textAlign:"left" }}>{labelHeader}</th>
+                        {valCols.map(c => <th key={c} style={thStyle}>{c}</th>)}
+                      </tr></thead>
+                      <tbody>
+                        {rows.map((row, i) => {
+                          const v = computeVal(row.plays);
+                          return (
+                            <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                              <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>
+                                {labelKey === "position" ? <><span style={{ fontWeight:800 }}>{row.name}</span> <Badge color="purple">{row.position}</Badge></> : row[labelKey]}
+                              </td>
+                              {metric.valueType !== "yards"  && <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700 }}>{v.count}</td>}
+                              {metric.valueType !== "count"  && <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v.yards>0?`+${v.yards}`:v.yards}</td>}
+                            </tr>
+                          );
+                        })}
+                        <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                          <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                          {(() => { const v = computeVal(matchingPlays); return (<>
+                            {metric.valueType !== "yards" && <td style={{ padding:"10px 10px", textAlign:"center", fontWeight:900, color:"#111827" }}>{v.count}</td>}
+                            {metric.valueType !== "count" && <td style={{ padding:"10px 10px", textAlign:"center", fontWeight:900, color:THEME.primary }}>{v.yards>0?`+${v.yards}`:v.yards}</td>}
+                          </>); })()}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+
+                return (
+                  <CollapsibleSection key={metric.id} title={metric.name}
+                    subtitle={`${metric.side === "both" ? "Off + Def" : metric.side === "offense" ? "Offense" : "Defense"} · ${matchingPlays.length} matching plays`}>
+                    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                      {/* Summary stat cards */}
+                      {(() => { const v = computeVal(matchingPlays); return (
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))", gap:12 }}>
+                          {metric.valueType !== "yards"  && <StatCard label="Total Count" value={v.count} accent={THEME.primary} />}
+                          {metric.valueType !== "count"  && <StatCard label="Total Yards" value={`+${v.yards}`} accent={THEME.primary} />}
+                          <StatCard label="Matching Plays" value={matchingPlays.length} />
+                          <StatCard label="Outcomes Tracked" value={(metric.outcomes||[]).length} />
+                        </div>
+                      ); })()}
+
+                      {breakdowns.includes("player") && Object.keys(byPlayerMap).length > 0 && (
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>By Player</div>
+                          {renderTable(Object.values(byPlayerMap).sort((a,b)=>a.name.localeCompare(b.name)), "position", "Player")}
+                        </div>
+                      )}
+                      {breakdowns.includes("game") && Object.keys(byGameMap).length > 0 && (
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>By Game</div>
+                          {renderTable(Object.values(byGameMap).sort((a,b)=>a.game.localeCompare(b.game)), "game", "Game")}
+                        </div>
+                      )}
+                      {breakdowns.includes("playCode") && Object.keys(byCodeMap).length > 0 && (
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:8 }}>By Play Code</div>
+                          {renderTable(Object.values(byCodeMap).sort((a,b)=>a.code.localeCompare(b.code)), "code", "Play Code")}
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleSection>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         {/* ───── REPORT CARDS TAB ───── */}
         {tab === "Report Cards" && (
           <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -2437,6 +2580,20 @@ const handleLogoDelete = async () => {
         {/* ───── MANAGE TAB ───── */}
         {tab === "Settings" && (
           <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
+
+            {/* Settings sub-tabs */}
+            <div style={{ display:"flex", gap:8 }}>
+              {[["general","⚙️ General"],["analytics","📊 Analytics Config"]].map(([id, label]) => (
+                <button key={id} onClick={() => setSettingsSubTab(id)} style={{
+                  padding:"9px 20px", borderRadius:8, border:"none", fontWeight:700, fontSize:13,
+                  cursor:"pointer", fontFamily:"inherit",
+                  background:settingsSubTab===id?THEME.primaryDark:"#e5e7eb",
+                  color:settingsSubTab===id?"#fff":"#374151",
+                }}>{label}</button>
+              ))}
+            </div>
+
+            {settingsSubTab === "general" && (<>
 
             {/* Logo Upload */}
 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
@@ -2709,6 +2866,174 @@ const handleLogoDelete = async () => {
                 </label>
               </div>
             </div>
+
+            </>)}
+
+            {/* ── Analytics Config Sub-tab ── */}
+            {settingsSubTab === "analytics" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+
+                {/* Custom Metrics */}
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                    <div>
+                      <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>Custom Metrics</div>
+                      <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Build metrics from any combination of outcomes. Appear in Analytics.</div>
+                    </div>
+                    {userProfile?.role === "admin" && (
+                      <button onClick={() => { setMetricForm({ name:"", side:"offense", valueType:"count", breakdowns:["player"], outcomes:[] }); setEditingMetric("new"); }}
+                        style={{ padding:"9px 16px", background:THEME.primaryDark, color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                        + New Metric
+                      </button>
+                    )}
+                  </div>
+
+                  {customMetrics.length === 0 ? (
+                    <div style={{ padding:32, textAlign:"center", color:"#9ca3af", fontSize:13 }}>No custom metrics yet. Click "New Metric" to build one.</div>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {customMetrics.map((m, mi) => (
+                        <div key={m.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:"#f8fafc", borderRadius:10 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{m.name}</div>
+                            <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>
+                              {m.side === "offense" ? "Offense" : m.side === "defense" ? "Defense" : "Both"} ·{" "}
+                              {m.valueType === "count" ? "Count" : m.valueType === "yards" ? "Yards" : "Count + Yards"} ·{" "}
+                              By {(m.breakdowns||[]).join(", ")} ·{" "}
+                              {(m.outcomes||[]).length} outcome{(m.outcomes||[]).length !== 1 ? "s" : ""}
+                            </div>
+                          </div>
+                          {userProfile?.role === "admin" && (
+                            <div style={{ display:"flex", gap:6 }}>
+                              <button onClick={() => { setMetricForm({ ...m }); setEditingMetric(m.id); }}
+                                style={{ border:"none", background:"#e8eef7", color:THEME.primaryDark, borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit</button>
+                              <button onClick={() => { if(window.confirm(`Delete "${m.name}"?`)) saveCustomMetrics(customMetrics.filter((_,j) => j !== mi)); }}
+                                style={{ border:"none", background:"#fee2e2", color:"#dc2626", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Delete</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Metric Builder Modal */}
+                {editingMetric !== null && (
+                  <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
+                    onClick={e => { if(e.target === e.currentTarget) setEditingMetric(null); }}>
+                    <div style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:600, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
+                      <div style={{ background:THEME.primaryDark, padding:"20px 28px", borderRadius:"20px 20px 0 0", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{editingMetric === "new" ? "New Metric" : "Edit Metric"}</div>
+                        <button onClick={() => setEditingMetric(null)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:18, fontFamily:"inherit" }}>×</button>
+                      </div>
+                      <div style={{ padding:28, display:"flex", flexDirection:"column", gap:18 }}>
+
+                        {/* Name */}
+                        <div>
+                          <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Metric Name *</label>
+                          <input style={{ width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", boxSizing:"border-box" }}
+                            placeholder="e.g. Big Plays, Scoring Plays, Red Zone Targets"
+                            value={metricForm.name}
+                            onChange={e => setMetricForm(f => ({ ...f, name: e.target.value }))} />
+                        </div>
+
+                        {/* Side */}
+                        <div>
+                          <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>Side</label>
+                          <div style={{ display:"flex", gap:8 }}>
+                            {[["offense","Offense"],["defense","Defense"],["both","Both"]].map(([val, label]) => (
+                              <button key={val} onClick={() => setMetricForm(f => ({ ...f, side: val }))}
+                                style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${metricForm.side===val?THEME.primaryDark:"#d1d5db"}`, background:metricForm.side===val?THEME.primaryDark:"#fff", color:metricForm.side===val?"#fff":"#374151", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Value Type */}
+                        <div>
+                          <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>Value Type</label>
+                          <div style={{ display:"flex", gap:8 }}>
+                            {[["count","Count"],["yards","Yards"],["both","Count + Yards"]].map(([val, label]) => (
+                              <button key={val} onClick={() => setMetricForm(f => ({ ...f, valueType: val }))}
+                                style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${metricForm.valueType===val?THEME.primaryDark:"#d1d5db"}`, background:metricForm.valueType===val?THEME.primaryDark:"#fff", color:metricForm.valueType===val?"#fff":"#374151", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Breakdown */}
+                        <div>
+                          <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>Break Down By (select all that apply)</label>
+                          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                            {[["player","Player"],["game","Game"],["playCode","Play Code"]].map(([val, label]) => {
+                              const active = (metricForm.breakdowns||[]).includes(val);
+                              return (
+                                <button key={val} onClick={() => setMetricForm(f => ({
+                                  ...f, breakdowns: active
+                                    ? (f.breakdowns||[]).filter(b => b !== val)
+                                    : [...(f.breakdowns||[]), val]
+                                }))}
+                                  style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${active?THEME.primaryDark:"#d1d5db"}`, background:active?THEME.primaryDark:"#fff", color:active?"#fff":"#374151", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Outcomes */}
+                        <div>
+                          <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Outcomes that count toward this metric *</label>
+                          <div style={{ fontSize:11, color:"#9ca3af", marginBottom:10 }}>Select all outcomes that should be counted.</div>
+                          <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:240, overflowY:"auto", padding:4 }}>
+                            {(metricForm.side === "defense" ? defOutcomes
+                              : metricForm.side === "both" ? [...outcomes, ...defOutcomes]
+                              : outcomes
+                            ).map(o => {
+                              const active = (metricForm.outcomes||[]).includes(o);
+                              return (
+                                <label key={o} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 10px", borderRadius:8, background:active?"#e8eef7":"#f8fafc", cursor:"pointer" }}>
+                                  <input type="checkbox" checked={active} onChange={() => setMetricForm(f => ({
+                                    ...f, outcomes: active
+                                      ? (f.outcomes||[]).filter(x => x !== o)
+                                      : [...(f.outcomes||[]), o]
+                                  }))} />
+                                  <span style={{ fontSize:13, fontWeight:active?700:400, color:active?THEME.primaryDark:"#374151" }}>{o}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Save */}
+                        <div style={{ display:"flex", gap:8, paddingTop:8, borderTop:"1.5px solid #e5e7eb" }}>
+                          <button onClick={() => {
+                            if (!metricForm.name.trim() || !(metricForm.outcomes||[]).length) {
+                              alert("Name and at least one outcome are required."); return;
+                            }
+                            if (editingMetric === "new") {
+                              saveCustomMetrics([...customMetrics, { ...metricForm, id: Date.now().toString() }]);
+                            } else {
+                              saveCustomMetrics(customMetrics.map(m => m.id === editingMetric ? { ...metricForm } : m));
+                            }
+                            setEditingMetric(null);
+                          }} style={{ flex:1, padding:"12px", background:THEME.primaryDark, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                            {editingMetric === "new" ? "Create Metric" : "Save Changes"}
+                          </button>
+                          <button onClick={() => setEditingMetric(null)}
+                            style={{ padding:"12px 20px", background:"#f3f4f6", color:"#374151", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
 
           </div>
         )}
