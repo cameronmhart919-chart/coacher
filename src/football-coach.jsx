@@ -2008,8 +2008,6 @@ const handleLogoDelete = async () => {
                 })()}
               </>)}
             </>)}
-              </>)}
-            </>)}
 
             {/* Defense analytics */}
             {analyticsSubTab === "Defense" && (() => {
