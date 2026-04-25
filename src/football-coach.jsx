@@ -389,6 +389,100 @@ function SharedGameView() {
   );
 }
 
+
+const DEFAULT_TABLE_LAYOUTS = {
+  throwers: {
+    columns: [
+      { key:"name",         label:"Player",  visible:true,  fixed:true  },
+      { key:"position",     label:"Pos",     visible:true,  fixed:true  },
+      { key:"att",          label:"Att",     visible:true               },
+      { key:"receptions",   label:"Rec",     visible:true               },
+      { key:"cmpPct",       label:"Cmp%",    visible:true               },
+      { key:"intPct",       label:"INT%",    visible:true               },
+      { key:"recGain",      label:"Rec+",    visible:true               },
+      { key:"incompletions",label:"Inc",     visible:true               },
+      { key:"tds",          label:"TDs",     visible:true               },
+      { key:"ints",         label:"INTs",    visible:true               },
+      { key:"drops",        label:"Drops",   visible:true               },
+      { key:"throwAways",   label:"T/A",     visible:true               },
+      { key:"sacks",        label:"Sacks",   visible:true               },
+      { key:"xp1",          label:"XP-1",    visible:true               },
+      { key:"xp2",          label:"XP-2",    visible:true               },
+      { key:"xp3",          label:"XP-3",    visible:true               },
+      { key:"yards",        label:"Yards",   visible:true               },
+    ],
+    playerFilter: "all",
+  },
+  recrun: {
+    columns: [
+      { key:"name",         label:"Player",    visible:true, fixed:true },
+      { key:"position",     label:"Pos",       visible:true, fixed:true },
+      { key:"attempts",     label:"Att",       visible:true             },
+      { key:"receptions",   label:"Rec",       visible:true             },
+      { key:"cmpPct",       label:"Cmp%",      visible:true             },
+      { key:"recGain",      label:"Rec+",      visible:true             },
+      { key:"drops",        label:"Drops",     visible:true             },
+      { key:"runs",         label:"Runs",      visible:true             },
+      { key:"runGain",      label:"Run+",      visible:true             },
+      { key:"runLoss",      label:"Run-",      visible:true             },
+      { key:"tds",          label:"TDs",       visible:true             },
+      { key:"xp1",          label:"XP-1",      visible:true             },
+      { key:"xp2",          label:"XP-2",      visible:true             },
+      { key:"xp3",          label:"XP-3",      visible:true             },
+      { key:"totalYds",     label:"Total Yds", visible:true             },
+      { key:"passYards",    label:"Pass Yds",  visible:true             },
+      { key:"runYards",     label:"Run Yds",   visible:true             },
+    ],
+    playerFilter: "all",
+  },
+  playcodes: {
+    columns: [
+      { key:"code",         label:"Code",  visible:true, fixed:true },
+      { key:"attempts",     label:"Att",   visible:true             },
+      { key:"receptions",   label:"Rec",   visible:true             },
+      { key:"cmpPct",       label:"Cmp%",  visible:true             },
+      { key:"tdPct",        label:"TD%",   visible:true             },
+      { key:"recGain",      label:"Rec+",  visible:true             },
+      { key:"recLoss",      label:"Rec-",  visible:true             },
+      { key:"incompletions",label:"Inc",   visible:true             },
+      { key:"drops",        label:"Drops", visible:true             },
+      { key:"throwAways",   label:"T/A",   visible:true             },
+      { key:"sacks",        label:"Sacks", visible:true             },
+      { key:"ints",         label:"INTs",  visible:true             },
+      { key:"runs",         label:"Runs",  visible:true             },
+      { key:"runGain",      label:"Run+",  visible:true             },
+      { key:"runLoss",      label:"Run-",  visible:true             },
+      { key:"tds",          label:"TDs",   visible:true             },
+      { key:"xp1",          label:"XP-1",  visible:true             },
+      { key:"xp2",          label:"XP-2",  visible:true             },
+      { key:"xp3",          label:"XP-3",  visible:true             },
+      { key:"yards",        label:"Yards", visible:true             },
+    ],
+  },
+  bygame: {
+    columns: [
+      { key:"game",         label:"Game",  visible:true, fixed:true },
+      { key:"attempts",     label:"Att",   visible:true             },
+      { key:"receptions",   label:"Rec",   visible:true             },
+      { key:"cmpPct",       label:"Cmp%",  visible:true             },
+      { key:"recGain",      label:"Rec+",  visible:true             },
+      { key:"incompletions",label:"Inc",   visible:true             },
+      { key:"drops",        label:"Drops", visible:true             },
+      { key:"throwAways",   label:"T/A",   visible:true             },
+      { key:"sacks",        label:"Sacks", visible:true             },
+      { key:"ints",         label:"INTs",  visible:true             },
+      { key:"runs",         label:"Runs",  visible:true             },
+      { key:"runGain",      label:"Run+",  visible:true             },
+      { key:"runLoss",      label:"Run-",  visible:true             },
+      { key:"tds",          label:"TDs",   visible:true             },
+      { key:"xp1",          label:"XP-1",  visible:true             },
+      { key:"xp2",          label:"XP-2",  visible:true             },
+      { key:"xp3",          label:"XP-3",  visible:true             },
+      { key:"yards",        label:"Yards", visible:true             },
+    ],
+  },
+};
+
 // ── Constants & theme ────────────────────────────────────────────────────────
 const THEME = {
   headerBg:    "linear-gradient(135deg, #000000 0%, #111111 100%)",
@@ -584,6 +678,8 @@ export default function FootballCoach() {
   const [teamUsers,     setTeamUsers]     = useState([]);
   const [customMetrics, setCustomMetrics] = useState([]);
   const [settingsSubTab, setSettingsSubTab] = useState("general");
+  const [tableLayouts, setTableLayouts] = useState(DEFAULT_TABLE_LAYOUTS);
+  const [draggingCol, setDraggingCol] = useState(null); // { tableKey, colIndex }
   const [dataLoading,   setDataLoading]   = useState(true);
 
   // ── Subscribe to Firestore collections ──────────────────────────────────
@@ -626,7 +722,16 @@ export default function FootballCoach() {
       if (snap.logoUrl) setLogoUrl(snap.logoUrl);
       else setLogoUrl(null);
     });
-    listenDoc("config/customMetrics", snap => setCustomMetrics(snap.metrics || []));
+    listenDoc("config/customMetrics",  snap => setCustomMetrics(snap.metrics || []));
+    listenDoc("config/tableLayouts",   snap => {
+      if (snap && snap.layouts) {
+        setTableLayouts(prev => {
+          const merged = { ...DEFAULT_TABLE_LAYOUTS };
+          Object.keys(snap.layouts).forEach(k => { if (merged[k]) merged[k] = snap.layouts[k]; });
+          return merged;
+        });
+      }
+    });
 
     // Listen to team users
     const usersUnsub = onSnapshot(
@@ -713,6 +818,7 @@ export default function FootballCoach() {
   const savePlayerActions = (val) => { setPlayerActions(val); saveConfig("playerActions", { playerActions: val }); };
   const saveTdOutcome     = (val) => { setTdOutcome(val);     saveConfig("settings",      { tdOutcome: val }); };
   const saveCustomMetrics = (metrics) => { setCustomMetrics(metrics); saveConfig("customMetrics", { metrics }); };
+  const saveTableLayouts  = (layouts) => { setTableLayouts(layouts); saveConfig("tableLayouts", { layouts }); };
 
   const handleLogoUpload = async (file) => {
   if (!base || !file) return;
@@ -1632,47 +1738,46 @@ const handleLogoDelete = async () => {
                   <CollapsibleSection title="Stats by Player — Throwers" subtitle="Att = Pass attempts · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att">
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
+                      {(() => {
+                        const tLayout = tableLayouts.throwers || DEFAULT_TABLE_LAYOUTS.throwers;
+                        const tCols = tLayout.columns.filter(c => c.visible);
+                        const pFilter = tLayout.playerFilter || "all";
+                        return (<>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        <SortTh tableKey="throwers" colKey="name" left>Player</SortTh>
-                        <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>
-                        {[["att","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["intPct","INT%"],["recGain","Rec+"],["incompletions","Inc"],["tds","TDs"],["ints","INTs"],["drops","Drops"],["throwAways","T/A"],["sacks","Sacks"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["yards","Yards"]].map(([k,h]) => (
-                          <SortTh key={k} tableKey="throwers" colKey={k}>{h}</SortTh>
+                        {tCols.map((col, ci) => (
+                          col.key === "name" ? <SortTh key={col.key} tableKey="throwers" colKey="name" left>{col.label}</SortTh>
+                          : col.key === "position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left" }}>{col.label}</th>
+                          : <SortTh key={col.key} tableKey="throwers" colKey={col.key}>{col.label}</SortTh>
                         ))}
                       </tr></thead>
                       <tbody>
-                        {getSortedRows("throwers", Object.values(analytics.byPlayer).filter(p=>p.isThrower).map(p => ({ ...p, cmpPct: p.attempts>0?p.receptions/p.attempts:0, intPct: p.attempts>0?p.ints/p.attempts:0, att:p.attempts })), "name").map((p,i) => (
+                        {getSortedRows("throwers", Object.values(analytics.byPlayer).filter(p=>p.isThrower && (pFilter==="all"||p.position===pFilter)).map(p => ({ ...p, cmpPct: p.attempts>0?p.receptions/p.attempts:0, intPct: p.attempts>0?p.ints/p.attempts:0, att:p.attempts })), "name").map((p,i) => (
                           <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                            <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
-                            <td style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
-                            <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.attempts||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.receptions||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", fontWeight:700 }}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.recGain||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.incompletions||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.ints>0?<Badge color="red">{p.ints}</Badge>:"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.drops||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.throwAways||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.sacks||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp1||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp2||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp3||"—"}</td>
-                            <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{p.yards>0?`+${p.yards}`:p.yards||"—"}</td>
+                            {tCols.map(col => {
+                              const v = p[col.key];
+                              if (col.key === "name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>;
+                              if (col.key === "position") return <td key={col.key} style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>;
+                              if (col.key === "tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
+                              if (col.key === "ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{p.ints>0?<Badge color="red">{p.ints}</Badge>:"—"}</td>;
+                              if (col.key === "cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
+                              if (col.key === "intPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", fontWeight:700 }}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>;
+                              if (col.key === "yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
+                              if (col.key === "recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
+                              return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                            })}
                           </tr>
                         ))}
                         {(() => {
-                          const rows = Object.values(analytics.byPlayer).filter(p => p.isThrower);
-                          const t = { attempts:0, receptions:0, recGain:0, incompletions:0, tds:0, ints:0, drops:0, throwAways:0, sacks:0, xp1:0, xp2:0, xp3:0, yards:0 };
-                          rows.forEach(p => { Object.keys(t).forEach(k => { t[k] += p[k] || 0; }); });
-                          const cmpPct = t.attempts > 0 ? `${Math.round(t.receptions/t.attempts*100)}%` : "—";
-                          const intPct = t.attempts > 0 ? `${(t.ints/t.attempts*100).toFixed(1)}%` : "—";
+                          const rows = Object.values(analytics.byPlayer).filter(p => p.isThrower && (tLayout.playerFilter==="all"||p.position===tLayout.playerFilter));
+                          const t = { att:0, receptions:0, recGain:0, incompletions:0, tds:0, ints:0, drops:0, throwAways:0, sacks:0, xp1:0, xp2:0, xp3:0, yards:0 };
+                          rows.forEach(p => { t.att+=p.attempts||0; t.receptions+=p.receptions||0; t.recGain+=p.recGain||0; t.incompletions+=p.incompletions||0; t.tds+=p.tds||0; t.ints+=p.ints||0; t.drops+=p.drops||0; t.throwAways+=p.throwAways||0; t.sacks+=p.sacks||0; t.xp1+=p.xp1||0; t.xp2+=p.xp2||0; t.xp3+=p.xp3||0; t.yards+=p.yards||0; });
+                          const valMap = { att:t.att, receptions:t.receptions, cmpPct:t.att>0?`${Math.round(t.receptions/t.att*100)}%`:"—", intPct:t.att>0?`${(t.ints/t.att*100).toFixed(1)}%`:"—", recGain:t.recGain, incompletions:t.incompletions, tds:t.tds, ints:t.ints, drops:t.drops, throwAways:t.throwAways, sacks:t.sacks, xp1:t.xp1, xp2:t.xp2, xp3:t.xp3, yards:t.yards>0?`+${t.yards}`:t.yards };
                           return (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
-                              <td></td>
-                              {[t.attempts,t.receptions,cmpPct,intPct,t.recGain,t.incompletions,t.tds,t.ints,t.drops,t.throwAways,t.sacks,t.xp1,t.xp2,t.xp3,t.yards].map((v,i) => (
-                                <td key={i} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{v||"—"}</td>
+                              {tCols.map((col,ci) => (
+                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                : col.key==="position" ? <td key={col.key}></td>
+                                : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                               ))}
                             </tr>
                           );
@@ -1680,121 +1785,119 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                     </div>
+                    </>);
+                  })()}
                   </CollapsibleSection>
                 )}
 
                 {/* Receivers & Runners table */}
                 {Object.values(analytics.byPlayer).some(p=>(p.isReceiver||p.isRunner)) && (
                   <CollapsibleSection title="Stats by Player — Receivers & Runners" subtitle="Att = Times targeted · Rec = Receptions · Cmp% = Rec/Att">
+                    {(() => {
+                    const rrLayout = tableLayouts.recrun || DEFAULT_TABLE_LAYOUTS.recrun;
+                    const rrCols = rrLayout.columns.filter(c => c.visible);
+                    const rrFilter = rrLayout.playerFilter || "all";
+                    return (<>
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        <SortTh tableKey="recrun" colKey="name" left>Player</SortTh>
-                        <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>
-                        {[["attempts","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["recGain","Rec+"],["drops","Drops"],["runs","Runs"],["runGain","Run+"],["runLoss","Run-"],["tds","TDs"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["totalYds","Total Yds"],["passYards","Pass Yds"],["runYards","Run Yds"]].map(([k,h]) => (
-                          <SortTh key={k} tableKey="recrun" colKey={k}>{h}</SortTh>
+                        {rrCols.map(col => (
+                          col.key==="name" ? <SortTh key={col.key} tableKey="recrun" colKey="name" left>{col.label}</SortTh>
+                          : col.key==="position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left" }}>{col.label}</th>
+                          : <SortTh key={col.key} tableKey="recrun" colKey={col.key}>{col.label}</SortTh>
                         ))}
                       </tr></thead>
                       <tbody>
-                        {getSortedRows("recrun", Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)).map(p => ({ name:p.name, position:p.position, attempts:p.recRunStats.attempts||0, receptions:p.recRunStats.receptions||0, cmpPct:p.recRunStats.attempts>0?p.recRunStats.receptions/p.recRunStats.attempts:0, recGain:p.recRunStats.recGain||0, drops:p.recRunStats.drops||0, runs:p.recRunStats.runs||0, runGain:p.recRunStats.runGain||0, runLoss:p.recRunStats.runLoss||0, tds:p.recRunStats.tds||0, xp1:p.recRunStats.xp1||0, xp2:p.recRunStats.xp2||0, xp3:p.recRunStats.xp3||0, totalYds:(p.recRunStats.passYards||0)+(p.recRunStats.runYards||0), passYards:p.recRunStats.passYards||0, runYards:p.recRunStats.runYards||0 })), "name").map((p,i) => (
+                        {getSortedRows("recrun", Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)&&(rrFilter==="all"||p.position===rrFilter)).map(p => ({ name:p.name, position:p.position, attempts:p.recRunStats.attempts||0, receptions:p.recRunStats.receptions||0, cmpPct:p.recRunStats.attempts>0?p.recRunStats.receptions/p.recRunStats.attempts:0, recGain:p.recRunStats.recGain||0, drops:p.recRunStats.drops||0, runs:p.recRunStats.runs||0, runGain:p.recRunStats.runGain||0, runLoss:p.recRunStats.runLoss||0, tds:p.recRunStats.tds||0, xp1:p.recRunStats.xp1||0, xp2:p.recRunStats.xp2||0, xp3:p.recRunStats.xp3||0, totalYds:(p.recRunStats.passYards||0)+(p.recRunStats.runYards||0), passYards:p.recRunStats.passYards||0, runYards:p.recRunStats.runYards||0 })), "name").map((p,i) => (
                             <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>
-                              <td style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.attempts||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.receptions||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.recGain||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.drops||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.runs||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.runGain||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{p.runLoss||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp1||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp2||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{p.xp3||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{p.totalYds>0?`+${p.totalYds}`:p.totalYds||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#4a6fa5" }}>{p.passYards>0?`+${p.passYards}`:p.passYards||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.runYards>0?`+${p.runYards}`:p.runYards||"—"}</td>
+                              {rrCols.map(col => {
+                                const v = p[col.key];
+                                if (col.key==="name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>;
+                                if (col.key==="position") return <td key={col.key} style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>;
+                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
+                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
+                                if (col.key==="recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
+                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{v||"—"}</td>;
+                                if (col.key==="totalYds"||col.key==="passYards"||col.key==="runYards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
+                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                              })}
                             </tr>
                         ))}
                         {(() => {
-                          const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver || p.isRunner));
+                          const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver||p.isRunner)&&(rrFilter==="all"||p.position===rrFilter));
                           const t = { attempts:0, receptions:0, recGain:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, passYards:0, runYards:0 };
                           rows.forEach(p => { Object.keys(t).forEach(k => { t[k] += p.recRunStats[k] || 0; }); });
-                          const cmpPct = t.attempts > 0 ? `${Math.round(t.receptions/t.attempts*100)}%` : "—";
                           const totalYds = t.passYards + t.runYards;
+                          const valMap = { attempts:t.attempts, receptions:t.receptions, cmpPct:t.attempts>0?`${Math.round(t.receptions/t.attempts*100)}%`:"—", recGain:t.recGain, drops:t.drops, runs:t.runs, runGain:t.runGain, runLoss:t.runLoss, tds:t.tds, xp1:t.xp1, xp2:t.xp2, xp3:t.xp3, totalYds:totalYds>0?`+${totalYds}`:totalYds, passYards:t.passYards>0?`+${t.passYards}`:t.passYards, runYards:t.runYards>0?`+${t.runYards}`:t.runYards };
                           return (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
-                              <td></td>
-                              {[t.attempts,t.receptions,cmpPct,t.recGain,t.drops,t.runs,t.runGain,t.runLoss,t.tds,t.xp1,t.xp2,t.xp3,totalYds,t.passYards,t.runYards].map((v,i) => (
-                                <td key={i} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{v||"—"}</td>
+                              {rrCols.map((col,ci) => (
+                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                : col.key==="position" ? <td key={col.key}></td>
+                                : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                               ))}
                             </tr>
                           );
                         })()}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                    </>);
+                    })()}
                   </CollapsibleSection>
                 )}
 
                 {/* Stats by Play Code table */}
                 {Object.keys(analytics.byCode).length > 0 && (
                   <CollapsibleSection title="Stats by Play Code" subtitle="Full breakdown of every play code used this season.">
+                    {(() => {
+                    const pcLayout = tableLayouts.playcodes || DEFAULT_TABLE_LAYOUTS.playcodes;
+                    const pcCols = pcLayout.columns.filter(c => c.visible);
+                    return (<>
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        <SortTh tableKey="playcodes" colKey="code" left>Code</SortTh>
-                        {[["attempts","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["tdPct","TD%"],["recGain","Rec+"],["recLoss","Rec-"],["incompletions","Inc"],["drops","Drops"],["throwAways","T/A"],["sacks","Sacks"],["ints","INTs"],["runs","Runs"],["runGain","Run+"],["runLoss","Run-"],["tds","TDs"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["yards","Yards"]].map(([k,h]) => (
-                          <SortTh key={k} tableKey="playcodes" colKey={k}>{h}</SortTh>
+                        {pcCols.map(col => (
+                          col.key==="code" ? <SortTh key={col.key} tableKey="playcodes" colKey="code" left>{col.label}</SortTh>
+                          : <SortTh key={col.key} tableKey="playcodes" colKey={col.key}>{col.label}</SortTh>
                         ))}
                       </tr></thead>
                       <tbody>
                         {getSortedRows("playcodes", Object.values(analytics.byCode).map(s => ({ ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0, tdPct:s.attempts>0?s.tds/s.attempts:0 })), "code").map((s,i) => {
-                          const cmpPct = s.attempts > 0 ? `${Math.round(s.receptions/s.attempts*100)}%` : "—";
-                          const tdPct  = s.attempts > 0 ? `${(s.tds/s.attempts*100).toFixed(1)}%` : "—";
                           return (
                             <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              <td style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.code}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.attempts||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.receptions||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{cmpPct}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669", fontWeight:700 }}>{tdPct}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.recGain||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{s.recLoss||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.incompletions||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.drops||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.throwAways||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.sacks||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.runs||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.runGain||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{s.runLoss||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp1||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp2||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp3||"—"}</td>
-                              <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{s.yards>0?`+${s.yards}`:s.yards||"—"}</td>
+                              {pcCols.map(col => {
+                                const v = s[col.key];
+                                if (col.key==="code") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.code}</td>;
+                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
+                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
+                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
+                                if (col.key==="tdPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", fontWeight:700 }}>{s.attempts>0?`${(s.tds/s.attempts*100).toFixed(1)}%`:"—"}</td>;
+                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
+                                if (col.key==="recLoss"||col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{v||"—"}</td>;
+                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
+                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                              })}
                             </tr>
                           );
                         })}
                         {(() => {
                           const ct = analytics.codeTotals;
-                          const cmpPct = ct.attempts > 0 ? `${Math.round(ct.receptions/ct.attempts*100)}%` : "—";
-                          const tdPct  = ct.attempts > 0 ? `${(ct.tds/ct.attempts*100).toFixed(1)}%` : "—";
+                          const valMap = { code:"TOTALS", attempts:ct.attempts, receptions:ct.receptions, cmpPct:ct.attempts>0?`${Math.round(ct.receptions/ct.attempts*100)}%`:"—", tdPct:ct.attempts>0?`${(ct.tds/ct.attempts*100).toFixed(1)}%`:"—", recGain:ct.recGain, recLoss:ct.recLoss, incompletions:ct.incompletions, drops:ct.drops, throwAways:ct.throwAways, sacks:ct.sacks, ints:ct.ints, runs:ct.runs, runGain:ct.runGain, runLoss:ct.runLoss, tds:ct.tds, xp1:ct.xp1, xp2:ct.xp2, xp3:ct.xp3, yards:ct.yards>0?`+${ct.yards}`:ct.yards };
                           return (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
-                              {[ct.attempts,ct.receptions,cmpPct,tdPct,ct.recGain,ct.recLoss,ct.incompletions,ct.drops,ct.throwAways,ct.sacks,ct.ints,ct.runs,ct.runGain,ct.runLoss,ct.tds,ct.xp1,ct.xp2,ct.xp3,ct.yards].map((v,i) => (
-                                <td key={i} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{v||"—"}</td>
+                              {pcCols.map((col,ci) => (
+                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                               ))}
                             </tr>
                           );
                         })()}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                    </>);
+                    })()}
                   </CollapsibleSection>
                 )}
               {/* Stats by Game table */}
@@ -1856,46 +1959,41 @@ const handleLogoDelete = async () => {
 
                   return (
                     <CollapsibleSection title="Stats by Game" subtitle="Offensive stats broken down per game.">
+                    {(() => {
+                    const bgLayout = tableLayouts.bygame || DEFAULT_TABLE_LAYOUTS.bygame;
+                    const bgCols = bgLayout.columns.filter(c => c.visible);
+                    return (<>
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
-                          <SortTh tableKey="bygame" colKey="game" left>Game</SortTh>
-                          {[["attempts","Att"],["receptions","Rec"],["cmpPct","Cmp%"],["recGain","Rec+"],["incompletions","Inc"],["drops","Drops"],["throwAways","T/A"],["sacks","Sacks"],["ints","INTs"],["runs","Runs"],["runGain","Run+"],["runLoss","Run-"],["tds","TDs"],["xp1","XP-1"],["xp2","XP-2"],["xp3","XP-3"],["yards","Yards"]].map(([k,h]) => (
-                            <SortTh key={k} tableKey="bygame" colKey={k}>{h}</SortTh>
+                          {bgCols.map(col => (
+                            col.key==="game" ? <SortTh key={col.key} tableKey="bygame" colKey="game" left>{col.label}</SortTh>
+                            : <SortTh key={col.key} tableKey="bygame" colKey={col.key}>{col.label}</SortTh>
                           ))}
                         </tr></thead>
                         <tbody>
-                          {getSortedRows("bygame", gameRows.map(([game, s]) => ({ game, ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0 })), "game").map((s, i) => {
-                            return (
-                              <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                                <td style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.game}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.attempts||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.receptions||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.recGain||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.incompletions||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.drops||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{s.throwAways||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.sacks||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.runs||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.runGain||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{s.runLoss||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp1||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp2||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{s.xp3||"—"}</td>
-                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{s.yards>0?`+${s.yards}`:s.yards||"—"}</td>
-                              </tr>
-                            );
-                          })}
+                          {getSortedRows("bygame", gameRows.map(([game, s]) => ({ game, ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0 })), "game").map((s, i) => (
+                            <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                              {bgCols.map(col => {
+                                const v = s[col.key];
+                                if (col.key==="game") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.game}</td>;
+                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
+                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
+                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
+                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
+                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{v||"—"}</td>;
+                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
+                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                              })}
+                            </tr>
+                          ))}
                           {(() => {
-                            const cmpPct = gt.attempts > 0 ? `${Math.round(gt.receptions/gt.attempts*100)}%` : "—";
+                            const valMap = { game:"TOTALS", attempts:gt.attempts, receptions:gt.receptions, cmpPct:gt.attempts>0?`${Math.round(gt.receptions/gt.attempts*100)}%`:"—", recGain:gt.recGain, incompletions:gt.incompletions, drops:gt.drops, throwAways:gt.throwAways, sacks:gt.sacks, ints:gt.ints, runs:gt.runs, runGain:gt.runGain, runLoss:gt.runLoss, tds:gt.tds, xp1:gt.xp1, xp2:gt.xp2, xp3:gt.xp3, yards:gt.yards>0?`+${gt.yards}`:gt.yards };
                             return (
                               <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                                <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
-                                {[gt.attempts,gt.receptions,cmpPct,gt.recGain,gt.incompletions,gt.drops,gt.throwAways,gt.sacks,gt.ints,gt.runs,gt.runGain,gt.runLoss,gt.tds,gt.xp1,gt.xp2,gt.xp3,gt.yards].map((v,i) => (
-                                  <td key={i} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{v||"—"}</td>
+                                {bgCols.map((col,ci) => (
+                                  ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                  : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                                 ))}
                               </tr>
                             );
@@ -1903,9 +2001,13 @@ const handleLogoDelete = async () => {
                         </tbody>
                       </table>
                     </div>
+                    </>);
+                    })()}
                   </CollapsibleSection>
                 );
                 })()}
+              </>)}
+            </>)}
               </>)}
             </>)}
 
@@ -3031,6 +3133,88 @@ const handleLogoDelete = async () => {
                     </div>
                   </div>
                 )}
+
+                {/* Table Layout Config */}
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                  <div style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>Table Layout</div>
+                    <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Show/hide and reorder columns for each analytics table. Drag to reorder.</div>
+                  </div>
+                  {[
+                    { key:"throwers",  label:"Throwers Table" },
+                    { key:"recrun",    label:"Receivers & Runners Table" },
+                    { key:"playcodes", label:"Play Codes Table" },
+                    { key:"bygame",    label:"Stats by Game Table" },
+                  ].map(({ key: tableKey, label: tableLabel }) => {
+                    const layout = tableLayouts[tableKey] || DEFAULT_TABLE_LAYOUTS[tableKey];
+                    const cols = layout.columns || [];
+                    return (
+                      <div key={tableKey} style={{ marginBottom:20, paddingBottom:20, borderBottom:"1.5px solid #f3f4f6" }}>
+                        <div style={{ fontSize:14, fontWeight:800, color:THEME.primaryDark, marginBottom:10 }}>{tableLabel}</div>
+
+                        {/* Player filter (only for player-based tables) */}
+                        {(tableKey === "throwers" || tableKey === "recrun") && (
+                          <div style={{ marginBottom:12 }}>
+                            <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:6 }}>Show Players</label>
+                            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                              <button onClick={() => {
+                                const updated = { ...tableLayouts, [tableKey]: { ...layout, playerFilter:"all" } };
+                                saveTableLayouts(updated);
+                              }} style={{ padding:"5px 14px", borderRadius:8, border:`1.5px solid ${layout.playerFilter==="all"?THEME.primaryDark:"#d1d5db"}`, background:layout.playerFilter==="all"?THEME.primaryDark:"#fff", color:layout.playerFilter==="all"?"#fff":"#374151", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>All Players</button>
+                              {positions.map(pos => (
+                                <button key={pos} onClick={() => {
+                                  const updated = { ...tableLayouts, [tableKey]: { ...layout, playerFilter:pos } };
+                                  saveTableLayouts(updated);
+                                }} style={{ padding:"5px 14px", borderRadius:8, border:`1.5px solid ${layout.playerFilter===pos?THEME.primaryDark:"#d1d5db"}`, background:layout.playerFilter===pos?THEME.primaryDark:"#fff", color:layout.playerFilter===pos?"#fff":"#374151", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{pos}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Column toggles + drag to reorder */}
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                          {cols.map((col, ci) => (
+                            <div key={col.key}
+                              draggable={!col.fixed}
+                              onDragStart={() => setDraggingCol({ tableKey, colIndex: ci })}
+                              onDragOver={e => { e.preventDefault(); }}
+                              onDrop={() => {
+                                if (!draggingCol || draggingCol.tableKey !== tableKey || draggingCol.colIndex === ci) return;
+                                const newCols = [...cols];
+                                const [moved] = newCols.splice(draggingCol.colIndex, 1);
+                                newCols.splice(ci, 0, moved);
+                                const updated = { ...tableLayouts, [tableKey]: { ...layout, columns: newCols } };
+                                saveTableLayouts(updated);
+                                setDraggingCol(null);
+                              }}
+                              onDragEnd={() => setDraggingCol(null)}
+                              style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:8, border:`1.5px solid ${col.visible?THEME.primaryDark:"#d1d5db"}`, background:col.visible?"#e8eef7":"#f8fafc", cursor:col.fixed?"default":"grab" }}>
+                              {!col.fixed && <span style={{ fontSize:10, color:"#9ca3af", cursor:"grab" }}>⠿</span>}
+                              <span style={{ fontSize:12, fontWeight:700, color:col.visible?THEME.primaryDark:"#9ca3af" }}>{col.label}</span>
+                              {!col.fixed && (
+                                <button onClick={() => {
+                                  const newCols = cols.map((c,i) => i===ci ? { ...c, visible:!c.visible } : c);
+                                  const updated = { ...tableLayouts, [tableKey]: { ...layout, columns: newCols } };
+                                  saveTableLayouts(updated);
+                                }} style={{ border:"none", background:"none", cursor:"pointer", fontSize:12, color:col.visible?"#dc2626":"#059669", padding:0, fontFamily:"inherit", fontWeight:700 }}>
+                                  {col.visible ? "✕" : "+"}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Reset button */}
+                        <button onClick={() => {
+                          const updated = { ...tableLayouts, [tableKey]: DEFAULT_TABLE_LAYOUTS[tableKey] };
+                          saveTableLayouts(updated);
+                        }} style={{ marginTop:10, padding:"5px 12px", background:"none", border:"1px solid #d1d5db", borderRadius:6, fontSize:11, color:"#6b7280", cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}>
+                          Reset to Default
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
 
               </div>
             )}
