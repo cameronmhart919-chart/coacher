@@ -1736,13 +1736,13 @@ const handleLogoDelete = async () => {
                 {/* Throwers table */}
                 {Object.values(analytics.byPlayer).some(p => p.isThrower) && (
                   <CollapsibleSection title="Stats by Player — Throwers" subtitle="Att = Pass attempts · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att">
+                    {(() => {
+                      const tLayout = tableLayouts.throwers || DEFAULT_TABLE_LAYOUTS.throwers;
+                      const tCols = tLayout.columns.filter(c => c.visible);
+                      const pFilter = tLayout.playerFilter || "all";
+                      return (
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
-                      {(() => {
-                        const tLayout = tableLayouts.throwers || DEFAULT_TABLE_LAYOUTS.throwers;
-                        const tCols = tLayout.columns.filter(c => c.visible);
-                        const pFilter = tLayout.playerFilter || "all";
-                        return (<>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {tCols.map((col, ci) => (
                           col.key === "name" ? <SortTh key={col.key} tableKey="throwers" colKey="name" left>{col.label}</SortTh>
@@ -1785,7 +1785,7 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                     </div>
-                    </>);
+                  );
                   })()}
                   </CollapsibleSection>
                 )}
@@ -1797,7 +1797,7 @@ const handleLogoDelete = async () => {
                     const rrLayout = tableLayouts.recrun || DEFAULT_TABLE_LAYOUTS.recrun;
                     const rrCols = rrLayout.columns.filter(c => c.visible);
                     const rrFilter = rrLayout.playerFilter || "all";
-                    return (<>
+                    return (
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
@@ -1842,7 +1842,7 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                     </div>
-                    </>);
+                    );
                     })()}
                   </CollapsibleSection>
                 )}
@@ -1853,7 +1853,7 @@ const handleLogoDelete = async () => {
                     {(() => {
                     const pcLayout = tableLayouts.playcodes || DEFAULT_TABLE_LAYOUTS.playcodes;
                     const pcCols = pcLayout.columns.filter(c => c.visible);
-                    return (<>
+                    return (
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
@@ -1896,7 +1896,7 @@ const handleLogoDelete = async () => {
                       </tbody>
                     </table>
                     </div>
-                    </>);
+                    );
                     })()}
                   </CollapsibleSection>
                 )}
@@ -1962,7 +1962,7 @@ const handleLogoDelete = async () => {
                     {(() => {
                     const bgLayout = tableLayouts.bygame || DEFAULT_TABLE_LAYOUTS.bygame;
                     const bgCols = bgLayout.columns.filter(c => c.visible);
-                    return (<>
+                    return (
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
@@ -2001,7 +2001,7 @@ const handleLogoDelete = async () => {
                         </tbody>
                       </table>
                     </div>
-                    </>);
+                    );
                     })()}
                   </CollapsibleSection>
                 );
