@@ -483,6 +483,32 @@ const DEFAULT_TABLE_LAYOUTS = {
   },
 };
 
+// ── Built-in metrics ─────────────────────────────────────────────────────────
+const BUILT_IN_METRICS = [
+  { id:"builtin_attempts",     name:"Attempts",       builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Reception - Gain","Reception - Loss","Incomplete","Drop","TD","INT","Throw Away","Sack","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt","XP Missed - 1pt","XP Missed - 2pt","XP Missed - 3pt"] },
+  { id:"builtin_receptions",   name:"Receptions",     builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Reception - Gain","Reception - Loss","TD","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"] },
+  { id:"builtin_recgain",      name:"Rec+",           builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Reception - Gain","TD","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt"] },
+  { id:"builtin_tds",          name:"Touchdowns",     builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["TD"] },
+  { id:"builtin_incompletions",name:"Incompletions",  builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Incomplete"] },
+  { id:"builtin_drops",        name:"Drops",          builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Drop"] },
+  { id:"builtin_ints",         name:"Interceptions",  builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["INT","Interception"] },
+  { id:"builtin_throwaway",    name:"Throw Aways",    builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Throw Away"] },
+  { id:"builtin_sacks",        name:"Sacks",          builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Sack"] },
+  { id:"builtin_runs",         name:"Runs",           builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Run - Gain","Run - Loss"] },
+  { id:"builtin_rungain",      name:"Run+",           builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Run - Gain"] },
+  { id:"builtin_runloss",      name:"Run-",           builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["Run - Loss"] },
+  { id:"builtin_yards",        name:"Yards",          builtin:true, side:"offense", valueType:"yards", breakdowns:["player","game","playCode"], outcomes:["Reception - Gain","Reception - Loss","TD","XP Converted - 1pt","XP Converted - 2pt","XP Converted - 3pt","Run - Gain","Run - Loss"] },
+  { id:"builtin_xp1",          name:"XP-1pt",         builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["XP Converted - 1pt"] },
+  { id:"builtin_xp2",          name:"XP-2pt",         builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["XP Converted - 2pt"] },
+  { id:"builtin_xp3",          name:"XP-3pt",         builtin:true, side:"offense", valueType:"count", breakdowns:["player","game","playCode"], outcomes:["XP Converted - 3pt"] },
+  { id:"builtin_def_pbu",      name:"PBUs",           builtin:true, side:"defense", valueType:"count", breakdowns:["player","game"],           outcomes:["Pass Incomplete"] },
+  { id:"builtin_def_flagpull", name:"Flag Pulls",     builtin:true, side:"defense", valueType:"count", breakdowns:["player","game"],           outcomes:["Pass Incomplete"] },
+  { id:"builtin_def_int",      name:"DEF INTs",       builtin:true, side:"defense", valueType:"count", breakdowns:["player","game"],           outcomes:["INT"] },
+  { id:"builtin_def_sack",     name:"DEF Sacks",      builtin:true, side:"defense", valueType:"count", breakdowns:["player","game"],           outcomes:["Sack - Time","Sack - Blitz"] },
+  { id:"builtin_def_tda",      name:"TDs Allowed",    builtin:true, side:"defense", valueType:"count", breakdowns:["player","game"],           outcomes:["Touchdown Allowed"] },
+  { id:"builtin_def_ydsall",   name:"Yards Allowed",  builtin:true, side:"defense", valueType:"yards", breakdowns:["player","game"],           outcomes:["Pass Allowed - Gain","Pass Allowed - Loss","Run - Gain","Run - Loss","Touchdown Allowed"] },
+];
+
 // ── Constants & theme ────────────────────────────────────────────────────────
 const THEME = {
   headerBg:    "linear-gradient(135deg, #000000 0%, #111111 100%)",
@@ -829,6 +855,14 @@ export default function FootballCoach() {
   const savePlayerActions = (val) => { setPlayerActions(val); saveConfig("playerActions", { playerActions: val }); };
   const saveTdOutcome     = (val) => { setTdOutcome(val);     saveConfig("settings",      { tdOutcome: val }); };
   const saveCustomMetrics = (metrics) => { setCustomMetrics(metrics); saveConfig("customMetrics", { metrics }); };
+  // Merge built-in + custom metrics, allowing built-in overrides via customMetrics
+  const allMetrics = [
+    ...BUILT_IN_METRICS.map(bm => {
+      const override = customMetrics.find(cm => cm.id === bm.id);
+      return override ? { ...bm, ...override } : bm;
+    }),
+    ...customMetrics.filter(cm => !cm.id.startsWith("builtin_")),
+  ];
   const saveTableLayouts = (layouts) => { setTableLayouts(layouts); saveConfig("tableLayouts", { layouts }); };
   const saveTableOrder   = (order)   => { setTableOrder(order);     saveConfig("tableOrder",   { order }); };
 
@@ -1770,7 +1804,7 @@ const handleLogoDelete = async () => {
                           : <SortTh key={col.key} tableKey="throwers" colKey={col.key}>{col.label}</SortTh>
                         ))}
                         {(tableLayouts.throwers?.metricColumns||[]).map(mid => {
-                          const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                          const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                           return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
                         })}
                       </tr></thead>
@@ -1790,7 +1824,7 @@ const handleLogoDelete = async () => {
                               return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
                             })}
                             {(tableLayouts.throwers?.metricColumns||[]).map(mid => {
-                              const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                              const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                               const pPlays = filteredPlays.filter(fp => [String(fp.thrower),String(fp.receiver),String(fp.carrier)].includes(String(p.id||"")));
                               const val = computeMetricVal(m, pPlays);
                               return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
@@ -1837,7 +1871,7 @@ const handleLogoDelete = async () => {
                           : <SortTh key={col.key} tableKey="recrun" colKey={col.key}>{col.label}</SortTh>
                         ))}
                         {(tableLayouts.recrun?.metricColumns||[]).map(mid => {
-                          const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                          const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                           return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
                         })}
                       </tr></thead>
@@ -1856,7 +1890,7 @@ const handleLogoDelete = async () => {
                                 return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
                               })}
                               {(tableLayouts.recrun?.metricColumns||[]).map(mid => {
-                                const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                                const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                                 const pPlays = filteredPlays.filter(fp => [String(fp.thrower),String(fp.receiver),String(fp.carrier)].includes(String(players.find(pl=>pl.name===p.name)?.id||"")));
                                 const val = computeMetricVal(m, pPlays);
                                 return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
@@ -1902,7 +1936,7 @@ const handleLogoDelete = async () => {
                           : <SortTh key={col.key} tableKey="playcodes" colKey={col.key}>{col.label}</SortTh>
                         ))}
                         {(tableLayouts.playcodes?.metricColumns||[]).map(mid => {
-                          const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                          const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                           return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
                         })}
                       </tr></thead>
@@ -1923,7 +1957,7 @@ const handleLogoDelete = async () => {
                                 return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
                               })}
                               {(tableLayouts.playcodes?.metricColumns||[]).map(mid => {
-                                const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                                const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                                 const cPlays = filteredPlays.filter(fp => fp.playCode===s.code);
                                 const val = computeMetricVal(m, cPlays);
                                 return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
@@ -2021,7 +2055,7 @@ const handleLogoDelete = async () => {
                             : <SortTh key={col.key} tableKey="bygame" colKey={col.key}>{col.label}</SortTh>
                           ))}
                           {(tableLayouts.bygame?.metricColumns||[]).map(mid => {
-                            const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                            const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                             return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
                           })}
                         </tr></thead>
@@ -2040,7 +2074,7 @@ const handleLogoDelete = async () => {
                                 return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
                               })}
                               {(tableLayouts.bygame?.metricColumns||[]).map(mid => {
-                                const m = customMetrics.find(x=>x.id===mid); if(!m) return null;
+                                const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
                                 const gPlays = filteredPlays.filter(fp => fp.game===s.game);
                                 const val = computeMetricVal(m, gPlays);
                                 return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
@@ -2413,7 +2447,7 @@ const handleLogoDelete = async () => {
               {customTables.map(tbl => {
                 const layout = tableLayouts[tbl.key];
                 if (!layout) return null;
-                const metricCols = (layout.metricColumns||[]).map(mid => customMetrics.find(m=>m.id===mid)).filter(Boolean);
+                const metricCols = (layout.metricColumns||[]).map(mid => allMetrics.find(m=>m.id===mid)).filter(Boolean);
                 if (!metricCols.length) return (
                   <CollapsibleSection key={tbl.key} title={layout.name||tbl.key} subtitle="No metrics configured — edit this table to add metrics.">
                     <div style={{ color:"#9ca3af", fontSize:13 }}>Add custom metrics in Settings → Analytics Config → Table Layout.</div>
@@ -2988,12 +3022,12 @@ const handleLogoDelete = async () => {
             {settingsSubTab === "analytics" && (
               <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
-                {/* Custom Metrics */}
+                {/* Metrics */}
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                     <div>
-                      <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>Custom Metrics</div>
-                      <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Build metrics from any combination of outcomes. Appear in Analytics.</div>
+                      <div style={{ fontSize:16, fontWeight:800, color:"#111827" }}>Metrics</div>
+                      <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>Built-in and custom metrics. Edit any metric or create new ones.</div>
                     </div>
                     {userProfile?.role === "admin" && (
                       <button onClick={() => { setMetricForm({ name:"", side:"offense", valueType:"count", breakdowns:["player"], outcomes:[] }); setEditingMetric("new"); }}
@@ -3003,33 +3037,38 @@ const handleLogoDelete = async () => {
                     )}
                   </div>
 
-                  {customMetrics.length === 0 ? (
-                    <div style={{ padding:32, textAlign:"center", color:"#9ca3af", fontSize:13 }}>No custom metrics yet. Click "New Metric" to build one.</div>
-                  ) : (
-                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                      {customMetrics.map((m, mi) => (
-                        <div key={m.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:"#f8fafc", borderRadius:10 }}>
-                          <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {allMetrics.map((m, mi) => (
+                      <div key={m.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:"#f8fafc", borderRadius:10, border:`1px solid ${m.builtin?"#e5e7eb":"#c7d7f0"}` }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                             <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{m.name}</div>
-                            <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>
-                              {m.side === "offense" ? "Offense" : m.side === "defense" ? "Defense" : "Both"} ·{" "}
-                              {m.valueType === "count" ? "Count" : m.valueType === "yards" ? "Yards" : "Count + Yards"} ·{" "}
-                              By {(m.breakdowns||[]).join(", ")} ·{" "}
-                              {(m.outcomes||[]).length} outcome{(m.outcomes||[]).length !== 1 ? "s" : ""}
-                            </div>
+                            {m.builtin && <span style={{ fontSize:10, fontWeight:700, background:"#f3f4f6", color:"#6b7280", padding:"1px 6px", borderRadius:999, textTransform:"uppercase" }}>Built-in</span>}
                           </div>
-                          {userProfile?.role === "admin" && (
-                            <div style={{ display:"flex", gap:6 }}>
-                              <button onClick={() => { setMetricForm({ ...m }); setEditingMetric(m.id); }}
-                                style={{ border:"none", background:"#e8eef7", color:THEME.primaryDark, borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit</button>
-                              <button onClick={() => { if(window.confirm(`Delete "${m.name}"?`)) saveCustomMetrics(customMetrics.filter((_,j) => j !== mi)); }}
-                                style={{ border:"none", background:"#fee2e2", color:"#dc2626", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Delete</button>
-                            </div>
-                          )}
+                          <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>
+                            {m.side === "offense" ? "Offense" : m.side === "defense" ? "Defense" : "Both"} ·{" "}
+                            {m.valueType === "count" ? "Count" : m.valueType === "yards" ? "Yards" : "Count + Yards"} ·{" "}
+                            By {(m.breakdowns||[]).join(", ")} ·{" "}
+                            {(m.outcomes||[]).length} outcome{(m.outcomes||[]).length !== 1 ? "s" : ""}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        {userProfile?.role === "admin" && (
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={() => { setMetricForm({ ...m }); setEditingMetric(m.id); }}
+                              style={{ border:"none", background:"#e8eef7", color:THEME.primaryDark, borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Edit</button>
+                            {!m.builtin && (
+                              <button onClick={() => { if(window.confirm(`Delete "${m.name}"?`)) saveCustomMetrics(customMetrics.filter(c => c.id !== m.id)); }}
+                                style={{ border:"none", background:"#fee2e2", color:"#dc2626", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Delete</button>
+                            )}
+                            {m.builtin && customMetrics.find(c => c.id === m.id) && (
+                              <button onClick={() => { if(window.confirm(`Reset "${m.name}" to default?`)) saveCustomMetrics(customMetrics.filter(c => c.id !== m.id)); }}
+                                style={{ border:"none", background:"#fef3c7", color:"#92400e", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700 }}>Reset</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Metric Builder Modal */}
@@ -3131,7 +3170,14 @@ const handleLogoDelete = async () => {
                             if (editingMetric === "new") {
                               saveCustomMetrics([...customMetrics, { ...metricForm, id: Date.now().toString() }]);
                             } else {
-                              saveCustomMetrics(customMetrics.map(m => m.id === editingMetric ? { ...metricForm } : m));
+                              // For built-in metrics: store override in customMetrics; for custom: update in place
+                              const exists = customMetrics.find(m => m.id === editingMetric);
+                              if (exists) {
+                                saveCustomMetrics(customMetrics.map(m => m.id === editingMetric ? { ...metricForm } : m));
+                              } else {
+                                // New override for a built-in metric
+                                saveCustomMetrics([...customMetrics, { ...metricForm }]);
+                              }
                             }
                             setEditingMetric(null);
                           }} style={{ flex:1, padding:"12px", background:THEME.primaryDark, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
@@ -3329,13 +3375,13 @@ const handleLogoDelete = async () => {
                         <div>
                           <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>
                             Custom Metric Columns
-                            <span style={{ fontSize:11, fontWeight:400, color:"#9ca3af", marginLeft:6 }}>Add metrics from your Custom Metrics list as extra columns</span>
+                            <span style={{ fontSize:11, fontWeight:400, color:"#9ca3af", marginLeft:6 }}>Add metrics as extra columns</span>
                           </label>
                           {customMetrics.length === 0 ? (
                             <div style={{ fontSize:12, color:"#9ca3af", padding:"10px 0" }}>No custom metrics yet. Create some in the Custom Metrics section above.</div>
                           ) : (
                             <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                              {customMetrics.map(m => {
+                              {allMetrics.map(m => {
                                 const active = (editingTable.metricColumns||[]).includes(m.id);
                                 return (
                                   <button key={m.id} onClick={() => setEditingTable(t => ({
