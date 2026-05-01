@@ -707,10 +707,10 @@ export default function FootballCoach() {
   const [tableLayouts, setTableLayouts] = useState(DEFAULT_TABLE_LAYOUTS);
   const [draggingCol,   setDraggingCol]   = useState(null); // { tableKey, colIndex }
   const [tableOrder,    setTableOrder]    = useState([
-    { key:"throwers",  type:"builtin", visible:true },
-    { key:"recrun",    type:"builtin", visible:true },
-    { key:"playcodes", type:"builtin", visible:true },
-    { key:"bygame",    type:"builtin", visible:true },
+    { key:"throwers",  type:"builtin", visible:true, page:"offense" },
+    { key:"recrun",    type:"builtin", visible:true, page:"offense" },
+    { key:"playcodes", type:"builtin", visible:true, page:"offense" },
+    { key:"bygame",    type:"builtin", visible:true, page:"offense" },
   ]);
   const [draggingTable, setDraggingTable] = useState(null);
   const [editingTable,  setEditingTable]  = useState(null); // null | { key, type, name?, dimension?, metricColumns?, isNew? }
@@ -2437,7 +2437,8 @@ const handleLogoDelete = async () => {
 
         {/* ───── CUSTOM TABLES (tableOrder-driven) ───── */}
         {tab === "Analytics" && (() => {
-          const customTables = tableOrder.filter(t => t.type === "custom");
+          const currentPage = analyticsSubTab.toLowerCase();
+          const customTables = tableOrder.filter(t => t.type === "custom" && (!t.page || t.page === currentPage || t.page === "both"));
           if (!customTables.length) return null;
           const allPlays    = filterGame === "All" ? plays    : plays.filter(p => p.game === filterGame);
           const allDefPlays = filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame);
@@ -3202,7 +3203,7 @@ const handleLogoDelete = async () => {
                     </div>
                     <button onClick={() => {
                       const newKey = `custom_${Date.now()}`;
-                      setEditingTable({ key:newKey, type:"custom", name:"New Table", dimension:"player", metricColumns:[], columns:[], isNew:true });
+                      setEditingTable({ key:newKey, type:"custom", name:"New Table", dimension:"player", metricColumns:[], columns:[], page:"offense", isNew:true });
                     }} style={{ padding:"9px 16px", background:THEME.primaryDark, color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                       + Add Table
                     </button>
@@ -3235,11 +3236,16 @@ const handleLogoDelete = async () => {
                             <span style={{ fontSize:14, fontWeight:700, color:"#111827" }}>{label}</span>
                             {!isBuiltin && <span style={{ fontSize:11, color:"#9ca3af", marginLeft:8 }}>Custom · {(tableLayouts[tbl.key]?.dimension)||"player"} view</span>}
                             {isBuiltin && <span style={{ fontSize:11, color:"#9ca3af", marginLeft:8 }}>Built-in</span>}
+                            <span style={{ fontSize:11, fontWeight:700, marginLeft:8, padding:"1px 7px", borderRadius:99,
+                              background: tbl.page==="defense" ? "#fee2e2" : tbl.page==="both" ? "#f0fdf4" : "#e8eef7",
+                              color: tbl.page==="defense" ? "#dc2626" : tbl.page==="both" ? "#059669" : THEME.primaryDark }}>
+                              {tbl.page==="defense" ? "Defense" : tbl.page==="both" ? "Both" : "Offense"}
+                            </span>
                           </div>
                           <div style={{ display:"flex", gap:6 }}>
                             <button onClick={() => {
                               const layout = tableLayouts[tbl.key] || (isBuiltin ? DEFAULT_TABLE_LAYOUTS[tbl.key] : {});
-                              setEditingTable({ key:tbl.key, type:tbl.type, name:label, dimension:layout.dimension||"player", metricColumns:layout.metricColumns||[], columns:layout.columns||[], isNew:false });
+                              setEditingTable({ key:tbl.key, type:tbl.type, name:label, dimension:layout.dimension||"player", metricColumns:layout.metricColumns||[], columns:layout.columns||[], page:tbl.page||"offense", isNew:false });
                             }} style={{ padding:"5px 12px", background:"#e8eef7", color:THEME.primaryDark, border:"none", borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                             <button onClick={() => {
                               const msg = isBuiltin
@@ -3268,7 +3274,7 @@ const handleLogoDelete = async () => {
                       <div style={{ marginTop:12, padding:"10px 14px", background:"#fef3c7", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
                         <span style={{ fontSize:12, color:"#92400e" }}>Some built-in tables have been removed.</span>
                         <button onClick={() => {
-                          const toAdd = missing.map(k => ({ key:k, type:"builtin", visible:true }));
+                          const toAdd = missing.map(k => ({ key:k, type:"builtin", visible:true, page:"offense" }));
                           saveTableOrder([...tableOrder, ...toAdd]);
                         }} style={{ padding:"5px 12px", background:"#f59e0b", color:"#fff", border:"none", borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Restore</button>
                       </div>
@@ -3371,6 +3377,19 @@ const handleLogoDelete = async () => {
                           );
                         })()}
 
+                        {/* Analytics page assignment */}
+                        <div>
+                          <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>Show In</label>
+                          <div style={{ display:"flex", gap:8 }}>
+                            {[["offense","Offensive Analytics"],["defense","Defensive Analytics"],["both","Both Pages"]].map(([val, lbl]) => (
+                              <button key={val} onClick={() => setEditingTable(t => ({ ...t, page:val }))}
+                                style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${editingTable.page===val?THEME.primaryDark:"#d1d5db"}`, background:editingTable.page===val?THEME.primaryDark:"#fff", color:editingTable.page===val?"#fff":"#374151", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                                {lbl}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         {/* Metric columns — add custom metrics to any table */}
                         <div>
                           <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>
@@ -3412,17 +3431,21 @@ const handleLogoDelete = async () => {
                         {/* Save button */}
                         <div style={{ display:"flex", gap:8, paddingTop:8, borderTop:"1.5px solid #e5e7eb" }}>
                           <button onClick={() => {
+                            const newPage = editingTable.page || "offense";
                             if (editingTable.type === "custom") {
                               if (!editingTable.name?.trim()) { alert("Table name is required."); return; }
                               const newLayouts = { ...tableLayouts, [editingTable.key]:{ name:editingTable.name, dimension:editingTable.dimension||"player", metricColumns:editingTable.metricColumns||[], columns:[] } };
                               saveTableLayouts(newLayouts);
                               if (editingTable.isNew) {
-                                saveTableOrder([...tableOrder, { key:editingTable.key, type:"custom", visible:true }]);
+                                saveTableOrder([...tableOrder, { key:editingTable.key, type:"custom", visible:true, page:newPage }]);
+                              } else {
+                                saveTableOrder(tableOrder.map(t => t.key===editingTable.key ? { ...t, page:newPage } : t));
                               }
                             } else {
-                              // Save metric columns for built-in table
+                              // Save metric columns + page for built-in table
                               const layout = tableLayouts[editingTable.key] || DEFAULT_TABLE_LAYOUTS[editingTable.key];
                               saveTableLayouts({ ...tableLayouts, [editingTable.key]:{ ...layout, metricColumns:editingTable.metricColumns||[] } });
+                              saveTableOrder(tableOrder.map(t => t.key===editingTable.key ? { ...t, page:newPage } : t));
                             }
                             setEditingTable(null);
                           }} style={{ flex:1, padding:"12px", background:THEME.primaryDark, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
