@@ -2447,14 +2447,21 @@ const handleLogoDelete = async () => {
               {customTables.map(tbl => {
                 const layout = tableLayouts[tbl.key];
                 if (!layout) return null;
-                const metricCols = (layout.metricColumns||[]).map(mid => allMetrics.find(m=>m.id===mid)).filter(Boolean);
-                if (!metricCols.length) return (
+                const metricColIds = layout.metricColumns || [];
+                if (!metricColIds.length) return (
                   <CollapsibleSection key={tbl.key} title={layout.name||tbl.key} subtitle="No metrics configured — edit this table to add metrics.">
                     <div style={{ color:"#9ca3af", fontSize:13 }}>Add custom metrics in Settings → Analytics Config → Table Layout.</div>
                   </CollapsibleSection>
                 );
 
+                // Derive ordered + visible columns from layout.columns; fall back to metricColumns (all visible)
+                const colState = layout.columns?.length > 0
+                  ? layout.columns
+                  : metricColIds.map(mid => ({ key: mid, visible: true }));
+                const visibleMetricCols = colState.filter(c => c.visible).map(c => allMetrics.find(m => m.id === c.key)).filter(Boolean);
+
                 const dim = layout.dimension || "player";
+                const dimLabel = dim === "player" ? "By Player" : dim === "game" ? "By Game" : "By Play Code";
 
                 // Build rows based on dimension
                 let rows = [];
@@ -2480,23 +2487,33 @@ const handleLogoDelete = async () => {
                   rows = Object.values(codeMap).filter(v=>v.allPlays.length).sort((a,b)=>a.label.localeCompare(b.label));
                 }
 
+                // Pre-compute metric values onto each row so getSortedRows can sort by metric column
+                const sortableRows = rows.map(row => {
+                  const computed = {};
+                  visibleMetricCols.forEach(m => {
+                    const val = computeMetricVal(m, row.allPlays);
+                    computed[m.id] = m.valueType === "yards" ? (val.yards || 0) : (val.count || 0);
+                  });
+                  return { ...row, ...computed };
+                });
+
                 return (
-                  <CollapsibleSection key={tbl.key} title={layout.name||tbl.key} subtitle={`${dim} view · ${metricCols.length} metric${metricCols.length!==1?"s":""}`}>
+                  <CollapsibleSection key={tbl.key} title={layout.name||tbl.key} subtitle={`${dimLabel} · ${visibleMetricCols.length} metric${visibleMetricCols.length!==1?"s":""}`}>
                     <div style={{ overflowX:"auto" }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:600 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
-                          <th style={{ ...thStyle, textAlign:"left" }}>{dim==="player"?"Player":dim==="game"?"Game":"Play Code"}</th>
+                          <SortTh tableKey={tbl.key} colKey="label" left>{dim==="player"?"Player":dim==="game"?"Game":"Play Code"}</SortTh>
                           {dim==="player" && <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>}
-                          {metricCols.map(m => (
-                            <th key={m.id} style={{ ...thStyle }}>{m.name}{m.valueType==="both"?" (Count/Yds)":""}</th>
+                          {visibleMetricCols.map(m => (
+                            <SortTh key={m.id} tableKey={tbl.key} colKey={m.id}>{m.name}{m.valueType==="both"?" (Count/Yds)":""}</SortTh>
                           ))}
                         </tr></thead>
                         <tbody>
-                          {rows.map((row, ri) => (
+                          {getSortedRows(tbl.key, sortableRows, "label").map((row, ri) => (
                             <tr key={ri} style={{ borderBottom:"1px solid #f3f4f6", background:ri%2===0?"#fff":"#fafafa" }}>
                               <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{row.label}</td>
                               {dim==="player" && <td style={{ padding:"9px 10px" }}><Badge color="purple">{row.subtitle}</Badge></td>}
-                              {metricCols.map(m => {
+                              {visibleMetricCols.map(m => {
                                 const val = computeMetricVal(m, row.allPlays);
                                 const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`;
                                 return <td key={m.id} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#6366f1" }}>{display}</td>;
@@ -2507,7 +2524,7 @@ const handleLogoDelete = async () => {
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
                               <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
                               {dim==="player" && <td></td>}
-                              {metricCols.map(m => {
+                              {visibleMetricCols.map(m => {
                                 const allRowPlays = rows.flatMap(r => r.allPlays);
                                 const val = computeMetricVal(m, allRowPlays);
                                 const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`;
@@ -3239,7 +3256,11 @@ const handleLogoDelete = async () => {
                           <div style={{ display:"flex", gap:6 }}>
                             <button onClick={() => {
                               const layout = tableLayouts[tbl.key] || (isBuiltin ? DEFAULT_TABLE_LAYOUTS[tbl.key] : {});
-                              setEditingTable({ key:tbl.key, type:tbl.type, name:label, dimension:layout.dimension||"player", metricColumns:layout.metricColumns||[], columns:layout.columns||[], isNew:false });
+                              const metricColumns = layout.metricColumns || [];
+                              const columns = isBuiltin
+                                ? (layout.columns || [])
+                                : (layout.columns?.length > 0 ? layout.columns : metricColumns.map(mid => ({ key: mid, visible: true })));
+                              setEditingTable({ key:tbl.key, type:tbl.type, name:label, dimension:layout.dimension||"player", metricColumns, columns, isNew:false });
                             }} style={{ padding:"5px 12px", background:"#e8eef7", color:THEME.primaryDark, border:"none", borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                             <button onClick={() => {
                               const msg = isBuiltin
@@ -3311,6 +3332,46 @@ const handleLogoDelete = async () => {
                             </div>
                           </div>
                         )}
+
+                        {/* Column show/hide + reorder for custom tables */}
+                        {editingTable.type === "custom" && (editingTable.columns||[]).length > 0 && (() => {
+                          const cols = editingTable.columns;
+                          return (
+                            <div>
+                              <label style={{ fontSize:12, fontWeight:700, color:"#374151", display:"block", marginBottom:8 }}>Column Order &amp; Visibility (drag to reorder, click ✕/+ to hide/show)</label>
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                                {cols.map((col, ci) => {
+                                  const metric = allMetrics.find(m => m.id === col.key);
+                                  if (!metric) return null;
+                                  return (
+                                    <div key={col.key}
+                                      draggable
+                                      onDragStart={() => setDraggingCol({ tableKey:editingTable.key, colIndex:ci })}
+                                      onDragOver={e => e.preventDefault()}
+                                      onDrop={() => {
+                                        if (!draggingCol || draggingCol.tableKey!==editingTable.key || draggingCol.colIndex===ci) return;
+                                        const newCols = [...cols];
+                                        const [moved] = newCols.splice(draggingCol.colIndex, 1);
+                                        newCols.splice(ci, 0, moved);
+                                        setEditingTable(t => ({ ...t, columns: newCols }));
+                                        setDraggingCol(null);
+                                      }}
+                                      onDragEnd={() => setDraggingCol(null)}
+                                      style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, border:`1.5px solid ${col.visible?THEME.primaryDark:"#d1d5db"}`, background:col.visible?"#e8eef7":"#f8fafc", cursor:"grab" }}>
+                                      <span style={{ fontSize:10, color:"#9ca3af" }}>⠿</span>
+                                      <span style={{ fontSize:12, fontWeight:700, color:col.visible?THEME.primaryDark:"#9ca3af" }}>{metric.name}</span>
+                                      <button onClick={() => {
+                                        setEditingTable(t => ({ ...t, columns: cols.map((c,i) => i===ci?{ ...c, visible:!c.visible }:c) }));
+                                      }} style={{ border:"none", background:"none", cursor:"pointer", fontSize:12, color:col.visible?"#dc2626":"#059669", padding:0, fontWeight:700, fontFamily:"inherit" }}>
+                                        {col.visible?"✕":"+"}
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Column show/hide + reorder for built-in tables */}
                         {editingTable.type === "builtin" && (() => {
@@ -3384,12 +3445,17 @@ const handleLogoDelete = async () => {
                               {allMetrics.map(m => {
                                 const active = (editingTable.metricColumns||[]).includes(m.id);
                                 return (
-                                  <button key={m.id} onClick={() => setEditingTable(t => ({
-                                    ...t,
-                                    metricColumns: active
+                                  <button key={m.id} onClick={() => setEditingTable(t => {
+                                    const newMetricColumns = active
                                       ? (t.metricColumns||[]).filter(id => id !== m.id)
-                                      : [...(t.metricColumns||[]), m.id]
-                                  }))}
+                                      : [...(t.metricColumns||[]), m.id];
+                                    const newColumns = t.type === "custom"
+                                      ? active
+                                        ? (t.columns||[]).filter(c => c.key !== m.id)
+                                        : [...(t.columns||[]), { key: m.id, visible: true }]
+                                      : t.columns;
+                                    return { ...t, metricColumns: newMetricColumns, columns: newColumns };
+                                  })}
                                     style={{ padding:"5px 12px", borderRadius:8, border:`1.5px solid ${active?THEME.primaryDark:"#d1d5db"}`, background:active?"#e8eef7":"#f8fafc", color:active?THEME.primaryDark:"#374151", fontWeight:active?700:400, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
                                     {active?"✓ ":""}{m.name}
                                   </button>
@@ -3414,7 +3480,7 @@ const handleLogoDelete = async () => {
                           <button onClick={() => {
                             if (editingTable.type === "custom") {
                               if (!editingTable.name?.trim()) { alert("Table name is required."); return; }
-                              const newLayouts = { ...tableLayouts, [editingTable.key]:{ name:editingTable.name, dimension:editingTable.dimension||"player", metricColumns:editingTable.metricColumns||[], columns:[] } };
+                              const newLayouts = { ...tableLayouts, [editingTable.key]:{ name:editingTable.name, dimension:editingTable.dimension||"player", metricColumns:editingTable.metricColumns||[], columns:editingTable.columns||[] } };
                               saveTableLayouts(newLayouts);
                               if (editingTable.isNew) {
                                 saveTableOrder([...tableOrder, { key:editingTable.key, type:"custom", visible:true }]);
