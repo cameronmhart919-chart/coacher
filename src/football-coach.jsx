@@ -937,12 +937,12 @@ const handleLogoDelete = async () => {
     });
   };
 
-  const SortTh = ({ tableKey, colKey, children, left }) => {
+  const SortTh = ({ tableKey, colKey, children, left, sticky }) => {
     const cfg = sortConfigs[tableKey];
     const active = cfg && cfg.key === colKey;
     const arrow = active ? (cfg.dir === "asc" ? " ▲" : " ▼") : " ⇅";
     return (
-      <th onClick={() => handleSort(tableKey, colKey)} style={{ padding:"9px 10px", textAlign:left?"left":"center", fontWeight:700, color:"#fff", fontSize:11, letterSpacing:0.4, textTransform:"uppercase", whiteSpace:"nowrap", cursor:"pointer", userSelect:"none", background:active?"rgba(255,255,255,0.15)":"transparent" }}>
+      <th onClick={() => handleSort(tableKey, colKey)} style={{ padding:"9px 10px", textAlign:left?"left":"center", fontWeight:700, color:"#fff", fontSize:11, letterSpacing:0.4, textTransform:"uppercase", whiteSpace:"nowrap", cursor:"pointer", userSelect:"none", background: sticky ? THEME.buttonBg : (active ? "rgba(255,255,255,0.15)" : "transparent"), ...(sticky ? { position:"sticky", left:0, zIndex:3, boxShadow:"2px 0 5px rgba(0,0,0,0.1)" } : {}) }}>
         {children}{arrow}
       </th>
     );
@@ -1799,9 +1799,9 @@ const handleLogoDelete = async () => {
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
                         {tCols.map((col, ci) => (
-                          col.key === "name" ? <SortTh key={col.key} tableKey="throwers" colKey="name" left>{col.label}</SortTh>
-                          : col.key === "position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left" }}>{col.label}</th>
-                          : <SortTh key={col.key} tableKey="throwers" colKey={col.key}>{col.label}</SortTh>
+                          col.key === "name" ? <SortTh key={col.key} tableKey="throwers" colKey="name" left sticky={ci===0}>{col.label}</SortTh>
+                          : col.key === "position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left", ...(ci===0?{position:"sticky",left:0,zIndex:3,background:THEME.buttonBg,boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{col.label}</th>
+                          : <SortTh key={col.key} tableKey="throwers" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
                         ))}
                         {(tableLayouts.throwers?.metricColumns||[]).map(mid => {
                           const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -1811,17 +1811,19 @@ const handleLogoDelete = async () => {
                       <tbody>
                         {getSortedRows("throwers", Object.values(analytics.byPlayer).filter(p=>p.isThrower && (pFilter==="all"||p.position===pFilter)).map(p => ({ ...p, cmpPct: p.attempts>0?p.receptions/p.attempts:0, intPct: p.attempts>0?p.ints/p.attempts:0, att:p.attempts })), "name").map((p,i) => (
                           <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                            {tCols.map(col => {
+                            {tCols.map((col, ci) => {
                               const v = p[col.key];
-                              if (col.key === "name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>;
-                              if (col.key === "position") return <td key={col.key} style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>;
-                              if (col.key === "tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
-                              if (col.key === "ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{p.ints>0?<Badge color="red">{p.ints}</Badge>:"—"}</td>;
-                              if (col.key === "cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
-                              if (col.key === "intPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", fontWeight:700 }}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>;
-                              if (col.key === "yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
-                              if (col.key === "recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
-                              return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                              const rowBg = i%2===0?"#fff":"#fafafa";
+                              const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
+                              if (col.key === "name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827", ...stickyFirst }}>{p.name}</td>;
+                              if (col.key === "position") return <td key={col.key} style={{ padding:"9px 10px", ...stickyFirst }}><Badge color="purple">{p.position}</Badge></td>;
+                              if (col.key === "tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
+                              if (col.key === "ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{p.ints>0?<Badge color="red">{p.ints}</Badge>:"—"}</td>;
+                              if (col.key === "cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
+                              if (col.key === "intPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", fontWeight:700, ...stickyFirst }}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>;
+                              if (col.key === "yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
+                              if (col.key === "recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
+                              return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
                             })}
                             {(tableLayouts.throwers?.metricColumns||[]).map(mid => {
                               const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -1839,7 +1841,7 @@ const handleLogoDelete = async () => {
                           return (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
                               {tCols.map((col,ci) => (
-                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
                                 : col.key==="position" ? <td key={col.key}></td>
                                 : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                               ))}
@@ -1865,10 +1867,10 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        {rrCols.map(col => (
-                          col.key==="name" ? <SortTh key={col.key} tableKey="recrun" colKey="name" left>{col.label}</SortTh>
-                          : col.key==="position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left" }}>{col.label}</th>
-                          : <SortTh key={col.key} tableKey="recrun" colKey={col.key}>{col.label}</SortTh>
+                        {rrCols.map((col, ci) => (
+                          col.key==="name" ? <SortTh key={col.key} tableKey="recrun" colKey="name" left sticky={ci===0}>{col.label}</SortTh>
+                          : col.key==="position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left", ...(ci===0?{position:"sticky",left:0,zIndex:3,background:THEME.buttonBg,boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{col.label}</th>
+                          : <SortTh key={col.key} tableKey="recrun" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
                         ))}
                         {(tableLayouts.recrun?.metricColumns||[]).map(mid => {
                           const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -1878,16 +1880,18 @@ const handleLogoDelete = async () => {
                       <tbody>
                         {getSortedRows("recrun", Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)&&(rrFilter==="all"||p.position===rrFilter)).map(p => ({ name:p.name, position:p.position, attempts:p.recRunStats.attempts||0, receptions:p.recRunStats.receptions||0, cmpPct:p.recRunStats.attempts>0?p.recRunStats.receptions/p.recRunStats.attempts:0, recGain:p.recRunStats.recGain||0, drops:p.recRunStats.drops||0, runs:p.recRunStats.runs||0, runGain:p.recRunStats.runGain||0, runLoss:p.recRunStats.runLoss||0, tds:p.recRunStats.tds||0, xp1:p.recRunStats.xp1||0, xp2:p.recRunStats.xp2||0, xp3:p.recRunStats.xp3||0, totalYds:(p.recRunStats.passYards||0)+(p.recRunStats.runYards||0), passYards:p.recRunStats.passYards||0, runYards:p.recRunStats.runYards||0 })), "name").map((p,i) => (
                             <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              {rrCols.map(col => {
+                              {rrCols.map((col, ci) => {
                                 const v = p[col.key];
-                                if (col.key==="name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{p.name}</td>;
-                                if (col.key==="position") return <td key={col.key} style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>;
-                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
-                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
-                                if (col.key==="recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
-                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{v||"—"}</td>;
-                                if (col.key==="totalYds"||col.key==="passYards"||col.key==="runYards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
-                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                                const rowBg = i%2===0?"#fff":"#fafafa";
+                                const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
+                                if (col.key==="name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827", ...stickyFirst }}>{p.name}</td>;
+                                if (col.key==="position") return <td key={col.key} style={{ padding:"9px 10px", ...stickyFirst }}><Badge color="purple">{p.position}</Badge></td>;
+                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
+                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
+                                if (col.key==="recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
+                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...stickyFirst }}>{v||"—"}</td>;
+                                if (col.key==="totalYds"||col.key==="passYards"||col.key==="runYards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
+                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
                               })}
                               {(tableLayouts.recrun?.metricColumns||[]).map(mid => {
                                 const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -1906,7 +1910,7 @@ const handleLogoDelete = async () => {
                           return (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
                               {rrCols.map((col,ci) => (
-                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
                                 : col.key==="position" ? <td key={col.key}></td>
                                 : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                               ))}
@@ -1931,9 +1935,9 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                       <thead><tr style={{ background:THEME.buttonBg }}>
-                        {pcCols.map(col => (
-                          col.key==="code" ? <SortTh key={col.key} tableKey="playcodes" colKey="code" left>{col.label}</SortTh>
-                          : <SortTh key={col.key} tableKey="playcodes" colKey={col.key}>{col.label}</SortTh>
+                        {pcCols.map((col, ci) => (
+                          col.key==="code" ? <SortTh key={col.key} tableKey="playcodes" colKey="code" left sticky={ci===0}>{col.label}</SortTh>
+                          : <SortTh key={col.key} tableKey="playcodes" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
                         ))}
                         {(tableLayouts.playcodes?.metricColumns||[]).map(mid => {
                           const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -1944,17 +1948,19 @@ const handleLogoDelete = async () => {
                         {getSortedRows("playcodes", Object.values(analytics.byCode).map(s => ({ ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0, tdPct:s.attempts>0?s.tds/s.attempts:0 })), "code").map((s,i) => {
                           return (
                             <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              {pcCols.map(col => {
+                              {pcCols.map((col, ci) => {
                                 const v = s[col.key];
-                                if (col.key==="code") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.code}</td>;
-                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
-                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
-                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
-                                if (col.key==="tdPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", fontWeight:700 }}>{s.attempts>0?`${(s.tds/s.attempts*100).toFixed(1)}%`:"—"}</td>;
-                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
-                                if (col.key==="recLoss"||col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{v||"—"}</td>;
-                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
-                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                                const rowBg = i%2===0?"#fff":"#fafafa";
+                                const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
+                                if (col.key==="code") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark, ...stickyFirst }}>{s.code}</td>;
+                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
+                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
+                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
+                                if (col.key==="tdPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", fontWeight:700, ...stickyFirst }}>{s.attempts>0?`${(s.tds/s.attempts*100).toFixed(1)}%`:"—"}</td>;
+                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
+                                if (col.key==="recLoss"||col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...stickyFirst }}>{v||"—"}</td>;
+                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
+                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
                               })}
                               {(tableLayouts.playcodes?.metricColumns||[]).map(mid => {
                                 const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -1971,7 +1977,7 @@ const handleLogoDelete = async () => {
                           return (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
                               {pcCols.map((col,ci) => (
-                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
                                 : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                               ))}
                             </tr>
@@ -2050,9 +2056,9 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
-                          {bgCols.map(col => (
-                            col.key==="game" ? <SortTh key={col.key} tableKey="bygame" colKey="game" left>{col.label}</SortTh>
-                            : <SortTh key={col.key} tableKey="bygame" colKey={col.key}>{col.label}</SortTh>
+                          {bgCols.map((col, ci) => (
+                            col.key==="game" ? <SortTh key={col.key} tableKey="bygame" colKey="game" left sticky={ci===0}>{col.label}</SortTh>
+                            : <SortTh key={col.key} tableKey="bygame" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
                           ))}
                           {(tableLayouts.bygame?.metricColumns||[]).map(mid => {
                             const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -2062,16 +2068,18 @@ const handleLogoDelete = async () => {
                         <tbody>
                           {getSortedRows("bygame", gameRows.map(([game, s]) => ({ game, ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0 })), "game").map((s, i) => (
                             <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              {bgCols.map(col => {
+                              {bgCols.map((col, ci) => {
                                 const v = s[col.key];
-                                if (col.key==="game") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark }}>{s.game}</td>;
-                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
-                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center" }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
-                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
-                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669" }}>{v||"—"}</td>;
-                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626" }}>{v||"—"}</td>;
-                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary }}>{v>0?`+${v}`:v||"—"}</td>;
-                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{v||"—"}</td>;
+                                const rowBg = i%2===0?"#fff":"#fafafa";
+                                const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
+                                if (col.key==="game") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark, ...stickyFirst }}>{s.game}</td>;
+                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
+                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
+                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
+                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
+                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...stickyFirst }}>{v||"—"}</td>;
+                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
+                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
                               })}
                               {(tableLayouts.bygame?.metricColumns||[]).map(mid => {
                                 const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
@@ -2086,7 +2094,7 @@ const handleLogoDelete = async () => {
                             return (
                               <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
                                 {bgCols.map((col,ci) => (
-                                  ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                                  ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
                                   : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
                                 ))}
                               </tr>
@@ -2175,17 +2183,19 @@ const handleLogoDelete = async () => {
                 </CollapsibleSection>
                 {Object.keys(outcomeCounts).length > 0 && (
                   <CollapsibleSection title="Play Outcomes">
+                    <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead><tr style={{ background:"#dc2626" }}>
-                        {["Outcome","Count","% of Plays"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center" }}>{h}</th>)}
+                        {["Outcome","Count","% of Plays"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i===0?"left":"center", ...(i===0?{position:"sticky",left:0,zIndex:3,background:"#dc2626",boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{h}</th>)}
                       </tr></thead>
                       <tbody>
                         {Object.entries(outcomeCounts).sort((a,b)=>b[1]-a[1]).map(([outcome,count],i) => {
                           const pct = Math.round(count/totalPlays*100);
                           const isNeg = ["Touchdown Allowed","Pass Allowed - Gain","Run - Gain","XP Allowed"].includes(outcome);
+                          const rowBg = i%2===0?"#fff":"#fafafa";
                           return (
-                            <tr key={outcome} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              <td style={{ padding:"9px 10px", fontWeight:600 }}>{outcome}</td>
+                            <tr key={outcome} style={{ borderBottom:"1px solid #f3f4f6", background:rowBg }}>
+                              <td style={{ padding:"9px 10px", fontWeight:600, position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{outcome}</td>
                               <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:isNeg?"#dc2626":"#059669" }}>{count}</td>
                               <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{pct}%</td>
                             </tr>
@@ -2193,27 +2203,33 @@ const handleLogoDelete = async () => {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </CollapsibleSection>
                 )}
                 {Object.values(byDPlayer).length > 0 && (
                   <CollapsibleSection title="Player Actions">
+                    <div style={{ overflowX:"auto" }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                       <thead><tr style={{ background:"#dc2626" }}>
-                        {["Player","Pos","PBUs","Flags Pulled","INTs","Sacks"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i<2?"left":"center" }}>{h}</th>)}
+                        {["Player","Pos","PBUs","Flags Pulled","INTs","Sacks"].map((h,i) => <th key={h} style={{ ...thStyle, textAlign:i<2?"left":"center", ...(i===0?{position:"sticky",left:0,zIndex:3,background:"#dc2626",boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{h}</th>)}
                       </tr></thead>
                       <tbody>
-                        {Object.values(byDPlayer).sort((a,b)=>a.name.localeCompare(b.name)).map((p,i) => (
-                          <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                            <td style={{ padding:"9px 10px", fontWeight:700 }}>{p.name}</td>
+                        {Object.values(byDPlayer).sort((a,b)=>a.name.localeCompare(b.name)).map((p,i) => {
+                          const rowBg = i%2===0?"#fff":"#fafafa";
+                          return (
+                          <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:rowBg }}>
+                            <td style={{ padding:"9px 10px", fontWeight:700, position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{p.name}</td>
                             <td style={{ padding:"9px 10px" }}><Badge color="purple">{p.position}</Badge></td>
                             <td style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{p.pbu||"—"}</td>
                             <td style={{ padding:"9px 10px", textAlign:"center", color:"#4a6fa5", fontWeight:700 }}>{p.flagPull||"—"}</td>
                             <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.intAction>0?<Badge color="green">{p.intAction}</Badge>:"—"}</td>
                             <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.sackAction>0?<Badge color="green">{p.sackAction}</Badge>:"—"}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
+                    </div>
                   </CollapsibleSection>
                 )}
               </>);
@@ -2486,7 +2502,7 @@ const handleLogoDelete = async () => {
                     <div style={{ overflowX:"auto" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                         <thead><tr style={{ background:THEME.buttonBg }}>
-                          <th style={{ ...thStyle, textAlign:"left" }}>{dim==="player"?"Player":dim==="game"?"Game":"Play Code"}</th>
+                          <th style={{ ...thStyle, textAlign:"left", position:"sticky", left:0, zIndex:3, background:THEME.buttonBg, boxShadow:"2px 0 5px rgba(0,0,0,0.1)" }}>{dim==="player"?"Player":dim==="game"?"Game":"Play Code"}</th>
                           {dim==="player" && <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>}
                           {metricCols.map(m => (
                             <th key={m.id} style={{ ...thStyle }}>{m.name}{m.valueType==="both"?" (Count/Yds)":""}</th>
@@ -2495,7 +2511,7 @@ const handleLogoDelete = async () => {
                         <tbody>
                           {rows.map((row, ri) => (
                             <tr key={ri} style={{ borderBottom:"1px solid #f3f4f6", background:ri%2===0?"#fff":"#fafafa" }}>
-                              <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{row.label}</td>
+                              <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, zIndex:1, background:ri%2===0?"#fff":"#fafafa", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{row.label}</td>
                               {dim==="player" && <td style={{ padding:"9px 10px" }}><Badge color="purple">{row.subtitle}</Badge></td>}
                               {metricCols.map(m => {
                                 const val = computeMetricVal(m, row.allPlays);
@@ -2506,7 +2522,7 @@ const handleLogoDelete = async () => {
                           ))}
                           {rows.length > 0 && (
                             <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11 }}>TOTALS</td>
+                              <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
                               {dim==="player" && <td></td>}
                               {metricCols.map(m => {
                                 const allRowPlays = rows.flatMap(r => r.allPlays);
