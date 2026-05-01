@@ -2761,34 +2761,6 @@ const handleLogoDelete = async () => {
 
             {settingsSubTab === "general" && (<>
 
-            {/* Logo Upload */}
-<div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Team Logo</div>
-  <div style={{ fontSize:12, color:"#6b7280", marginBottom:16 }}>Upload your team logo. Appears in the header, game summaries, and PDF exports. Admin only.</div>
-  {userProfile?.role === "admin" && (
-    <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
-      {logoUrl && (
-        <img src={logoUrl} alt="Team logo" style={{ width:80, height:80, objectFit:"cover", borderRadius:12, border:"1.5px solid #e5e7eb" }} />
-      )}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-        <label style={{ padding:"9px 18px", background:THEME.buttonBg, color:"#fff", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-          {logoUploading ? "Uploading..." : logoUrl ? "Replace Logo" : "Upload Logo"}
-          <input type="file" accept="image/*" style={{ display:"none" }} disabled={logoUploading}
-            onChange={e => { const file = e.target.files[0]; if (file) handleLogoUpload(file); e.target.value=""; }} />
-        </label>
-        {logoUrl && (
-          <button onClick={() => { if(window.confirm("Delete team logo?")) handleLogoDelete(); }}
-            style={{ padding:"9px 18px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-            Remove Logo
-          </button>
-        )}
-      </div>
-    </div>
-  )}
-  {userProfile?.role !== "admin" && (
-    <div style={{ fontSize:13, color:"#9ca3af" }}>Only admins can upload a logo.</div>
-  )}
-</div>
             {/* Games */}
             <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
               <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Games</div>
@@ -3001,6 +2973,35 @@ const handleLogoDelete = async () => {
                 ))}
               </div>
             </div>
+
+            {/* Logo Upload */}
+<div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Team Logo</div>
+  <div style={{ fontSize:12, color:"#6b7280", marginBottom:16 }}>Upload your team logo. Appears in the header, game summaries, and PDF exports. Admin only.</div>
+  {userProfile?.role === "admin" && (
+    <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+      {logoUrl && (
+        <img src={logoUrl} alt="Team logo" style={{ width:80, height:80, objectFit:"cover", borderRadius:12, border:"1.5px solid #e5e7eb" }} />
+      )}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <label style={{ padding:"9px 18px", background:THEME.buttonBg, color:"#fff", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+          {logoUploading ? "Uploading..." : logoUrl ? "Replace Logo" : "Upload Logo"}
+          <input type="file" accept="image/*" style={{ display:"none" }} disabled={logoUploading}
+            onChange={e => { const file = e.target.files[0]; if (file) handleLogoUpload(file); e.target.value=""; }} />
+        </label>
+        {logoUrl && (
+          <button onClick={() => { if(window.confirm("Delete team logo?")) handleLogoDelete(); }}
+            style={{ padding:"9px 18px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+            Remove Logo
+          </button>
+        )}
+      </div>
+    </div>
+  )}
+  {userProfile?.role !== "admin" && (
+    <div style={{ fontSize:13, color:"#9ca3af" }}>Only admins can upload a logo.</div>
+  )}
+</div>
 
             {/* Data Management */}
             <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:20, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
