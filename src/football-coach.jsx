@@ -1150,7 +1150,15 @@ const handleLogoDelete = async () => {
   };
 
   // ── Local UI state ───────────────────────────────────────────────────────
-  const [tab, setTab] = useState("Play Logger");
+  const [tab, setTab] = useState("Log a Play +");
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   const [form, setForm] = useState({
     game:"Game 1", quarter:"1", down:"1", distance:"", playCode:"",
@@ -1453,9 +1461,16 @@ const handleLogoDelete = async () => {
     return "gray";
   };
 
-  const inputStyle = { width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", background:"#fff", color:"#111827", boxSizing:"border-box", outline:"none" };
-  const labelStyle = { fontSize:12, fontWeight:700, color:"#374151", marginBottom:4, display:"block", letterSpacing:0.3 };
-  const thStyle    = { padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#fff", fontSize:11, letterSpacing:0.4, textTransform:"uppercase", whiteSpace:"nowrap" };
+  const inputStyle  = { width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", background:"#fff", color:"#111827", boxSizing:"border-box", outline:"none" };
+  // Mobile inputs: larger touch targets + font-size 16 to prevent iOS auto-zoom
+  const mInputStyle = isMobile ? { ...inputStyle, padding:"13px 14px", fontSize:16, minHeight:48 } : inputStyle;
+  const labelStyle  = { fontSize:12, fontWeight:700, color:"#374151", marginBottom:4, display:"block", letterSpacing:0.3 };
+  const thStyle     = { padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#fff", fontSize:11, letterSpacing:0.4, textTransform:"uppercase", whiteSpace:"nowrap" };
+  // Responsive helpers
+  const cols4 = isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)";
+  const cols3 = isMobile ? "repeat(2, 1fr)" : "1fr 1fr 1fr";
+  const cols2 = "1fr 1fr"; // stays 2-col on mobile too
+  const formSideBySide = isMobile ? "1fr" : "1fr 340px";
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleLogPlay = async () => {
@@ -1500,61 +1515,120 @@ const handleLogoDelete = async () => {
   return (
     <div style={{ minHeight:"100vh", background:"#f4f6fa", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
       {/* ── Header ── */}
+      {/* ── Header ── */}
       <div style={{ background:THEME.headerBg, boxShadow:"0 4px 24px rgba(0,0,0,0.18)" }}>
-        <div style={{ maxWidth:960, margin:"0 auto", padding:"22px 24px 0" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:20 }}>
-           <div style={{ width:44, height:44, borderRadius:12, background:"transparent", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
-          {logoUrl 
-           ? <img src={logoUrl} alt="Team logo" style={{ width:44, height:44, objectFit:"cover", borderRadius:12 }} />
-            : <span style={{ fontSize:28 }}>🏈</span>
-           }
+        <div style={{ maxWidth:isMobile?undefined:960, margin:"0 auto", padding: isMobile ? "14px 16px 0" : "22px 24px 0" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom: isMobile ? 14 : 20 }}>
+            <div style={{ width:40, height:40, borderRadius:10, background:"transparent", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
+              {logoUrl
+                ? <img src={logoUrl} alt="Team logo" style={{ width:40, height:40, objectFit:"cover", borderRadius:10 }} />
+                : <span style={{ fontSize:24 }}>🏈</span>}
             </div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:22, fontWeight:900, color:"#fff", letterSpacing:-0.5 }}>Coacher</div>
-              <div style={{ fontSize:12, color:"#a8b8c8", marginTop:1 }}>
-                {userProfile?.name || authUser?.email} · {userProfile?.role === "admin" ? "Admin" : "Coach"}
-              </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize: isMobile ? 18 : 22, fontWeight:900, color:"#fff", letterSpacing:-0.5 }}>Coacher</div>
+              {!isMobile && (
+                <div style={{ fontSize:12, color:"#a8b8c8", marginTop:1 }}>
+                  {userProfile?.name || authUser?.email} · {userProfile?.role === "admin" ? "Admin" : "Coach"}
+                </div>
+              )}
             </div>
-           <div style={{ position:"relative" }}>
-            <button onClick={() => setManageDropdownOpen(o => !o)}
-              style={{ padding:"7px 14px", background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6 }}>
-              ⚙️ Manage <span style={{ fontSize:10 }}>▼</span>
-            </button>
-            {manageDropdownOpen && (
-              <div onMouseDown={e => e.stopPropagation()} style={{ position:"absolute", right:0, top:"calc(100% + 8px)", background:"#fff", borderRadius:12, border:"1.5px solid #e5e7eb", boxShadow:"0 8px 32px rgba(0,0,0,0.12)", minWidth:160, zIndex:100, overflow:"hidden" }}>
-                <button onClick={() => { setTab("Settings"); setManageDropdownOpen(false); }}
-                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
-                  ⚙️ Settings
+            {/* Desktop: Manage dropdown */}
+            {!isMobile && (
+              <div style={{ position:"relative" }}>
+                <button onClick={() => setManageDropdownOpen(o => !o)}
+                  style={{ padding:"7px 14px", background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6 }}>
+                  ⚙️ Manage <span style={{ fontSize:10 }}>▼</span>
                 </button>
-                <div style={{ height:"1px", background:"#e5e7eb" }} />
-                <button onClick={() => { setTab("Team"); setManageDropdownOpen(false); }}
-                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
-                  👥 Team
-                </button>
-                <div style={{ height:"1px", background:"#e5e7eb" }} />
-                <button onClick={() => signOut(auth)}
-                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
-                  🚪 Sign Out
-                </button>
+                {manageDropdownOpen && (
+                  <div onMouseDown={e => e.stopPropagation()} style={{ position:"absolute", right:0, top:"calc(100% + 8px)", background:"#fff", borderRadius:12, border:"1.5px solid #e5e7eb", boxShadow:"0 8px 32px rgba(0,0,0,0.12)", minWidth:160, zIndex:100, overflow:"hidden" }}>
+                    <button onClick={() => { setTab("Settings"); setManageDropdownOpen(false); }}
+                      style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                      ⚙️ Settings
+                    </button>
+                    <div style={{ height:"1px", background:"#e5e7eb" }} />
+                    <button onClick={() => { setTab("Team"); setManageDropdownOpen(false); }}
+                      style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                      👥 Team
+                    </button>
+                    <div style={{ height:"1px", background:"#e5e7eb" }} />
+                    <button onClick={() => signOut(auth)}
+                      style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                      🚪 Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
-          </div>
-          {/* Tabs */}
-          <div style={{ display:"flex", gap:2, overflowX:"auto" }}>
-            {TABS.map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                padding:"10px 18px", background:"none", border:"none", borderBottom:tab===t?"3px solid #fff":"3px solid transparent",
-                color:tab===t?"#fff":"rgba(255,255,255,0.55)", fontWeight:tab===t?800:500, fontSize:13,
-                cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.15s",
-              }}>{t}</button>
-            ))}
-          </div>
+          {/* Desktop: top tab row */}
+          {!isMobile && (
+            <div style={{ display:"flex", gap:2, overflowX:"auto" }}>
+              {TABS.map(t => (
+                <button key={t} onClick={() => setTab(t)} style={{
+                  padding:"10px 18px", background:"none", border:"none", borderBottom:tab===t?"3px solid #fff":"3px solid transparent",
+                  color:tab===t?"#fff":"rgba(255,255,255,0.55)", fontWeight:tab===t?800:500, fontSize:13,
+                  cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.15s",
+                }}>{t}</button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* ── Mobile bottom nav ── */}
+      {isMobile && (
+        <>
+          {/* "More" sheet overlay */}
+          {mobileMoreOpen && (
+            <div onClick={() => setMobileMoreOpen(false)}
+              style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:200 }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ position:"absolute", bottom:64, left:0, right:0, background:"#fff", borderRadius:"20px 20px 0 0", padding:"12px 0 8px", boxShadow:"0 -4px 24px rgba(0,0,0,0.15)" }}>
+                <div style={{ width:40, height:4, borderRadius:2, background:"#d1d5db", margin:"0 auto 16px" }} />
+                {[
+                  { icon:"📝", label:"Report Cards", tab:"Report Cards" },
+                  { icon:"👥", label:"Team",          tab:"Team" },
+                  { icon:"⚙️", label:"Settings",      tab:"Settings" },
+                ].map(item => (
+                  <button key={item.tab} onClick={() => { setTab(item.tab); setMobileMoreOpen(false); }}
+                    style={{ width:"100%", padding:"16px 24px", background:tab===item.tab?"#f0f4f8":"none", border:"none", textAlign:"left", fontSize:16, fontWeight:700, color:tab===item.tab?THEME.primaryDark:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:14 }}>
+                    <span style={{ fontSize:22 }}>{item.icon}</span> {item.label}
+                  </button>
+                ))}
+                <div style={{ height:"1px", background:"#e5e7eb", margin:"8px 0" }} />
+                <button onClick={() => signOut(auth)}
+                  style={{ width:"100%", padding:"16px 24px", background:"none", border:"none", textAlign:"left", fontSize:16, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:14 }}>
+                  <span style={{ fontSize:22 }}>🚪</span> Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Fixed bottom tab bar */}
+          <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:100, background:"#fff", borderTop:"1.5px solid #e5e7eb", display:"flex", boxShadow:"0 -2px 12px rgba(0,0,0,0.08)" }}>
+            {[
+              { icon:"📋", label:"Log",     tab:"Log a Play +" },
+              { icon:"📜", label:"History", tab:"Play History" },
+              { icon:"📊", label:"Stats",   tab:"Analytics" },
+              { icon:"🏈", label:"Games",   tab:"Game Summary" },
+              { icon:"⋯",  label:"More",    tab:null },
+            ].map(item => {
+              const isActive = item.tab ? tab === item.tab : ["Report Cards","Team","Settings"].includes(tab);
+              return (
+                <button key={item.label}
+                  onClick={() => item.tab ? setTab(item.tab) : setMobileMoreOpen(o => !o)}
+                  style={{ flex:1, padding:"8px 4px 10px", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+                  <span style={{ fontSize:20 }}>{item.icon}</span>
+                  <span style={{ fontSize:10, fontWeight: isActive ? 800 : 500, color: isActive ? THEME.primaryDark : "#6b7280" }}>{item.label}</span>
+                  {isActive && <div style={{ width:18, height:2.5, borderRadius:2, background:THEME.primaryDark, marginTop:1 }} />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {/* ── Body ── */}
-      <div style={{ maxWidth:960, margin:"0 auto", padding:"28px 24px" }}>
+      <div style={{ maxWidth: isMobile ? undefined : 960, margin:"0 auto", padding: isMobile ? "20px 16px 88px" : "28px 24px" }}>
 
         {/* ───── PLAY LOGGER TAB ───── */}
         {tab === "Log a Play +" && (
@@ -1572,84 +1646,84 @@ const handleLogoDelete = async () => {
 
             {/* Offensive form */}
             {analyticsSubTab === "Offense" && (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 340px", gap:24 }}>
-                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:28 }}>
+              <div style={{ display:"grid", gridTemplateColumns:formSideBySide, gap:24 }}>
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding: isMobile ? 20 : 28 }}>
                   <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:22 }}>Log an Offensive Play</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols3, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Game</label>
-                      <select style={inputStyle} value={form.game} onChange={e => f("game", e.target.value)}>
+                      <select style={mInputStyle} value={form.game} onChange={e => f("game", e.target.value)}>
                         {games.map(g => <option key={g}>{g}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Quarter</label>
-                      <select style={inputStyle} value={form.quarter} onChange={e => f("quarter", e.target.value)}>
+                      <select style={mInputStyle} value={form.quarter} onChange={e => f("quarter", e.target.value)}>
                         {["1","2","3","4","OT"].map(q => <option key={q}>{q}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Down</label>
-                      <select style={inputStyle} value={form.down} onChange={e => f("down", e.target.value)}>
+                      <select style={mInputStyle} value={form.down} onChange={e => f("down", e.target.value)}>
                         {["1","2","3","4"].map(d => <option key={d}>{d}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols2, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Distance (yards)</label>
-                      <input style={inputStyle} type="number" placeholder="e.g. 10" value={form.distance} onChange={e => f("distance", e.target.value)} />
+                      <input style={mInputStyle} type="number" placeholder="e.g. 10" value={form.distance} onChange={e => f("distance", e.target.value)} />
                     </div>
                     <div><label style={labelStyle}>Play Code</label>
-                      <select style={inputStyle} value={form.playCode} onChange={e => f("playCode", e.target.value)}>
+                      <select style={mInputStyle} value={form.playCode} onChange={e => f("playCode", e.target.value)}>
                         <option value="">— Select —</option>
                         {playCodes.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols2, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Play Type *</label>
-                      <select style={inputStyle} value={form.playType} onChange={e => f("playType", e.target.value)}>
+                      <select style={mInputStyle} value={form.playType} onChange={e => f("playType", e.target.value)}>
                         <option value="">— Select —</option>
                         {PLAY_TYPES.map(t => <option key={t}>{t}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Outcome *</label>
-                      <select style={inputStyle} value={form.outcome} onChange={e => f("outcome", e.target.value)}>
+                      <select style={mInputStyle} value={form.outcome} onChange={e => f("outcome", e.target.value)}>
                         <option value="">— Select —</option>
                         {outcomes.map(o => <option key={o}>{o}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols3, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Thrower</label>
-                      <select style={inputStyle} value={form.thrower} onChange={e => f("thrower", e.target.value)}>
+                      <select style={mInputStyle} value={form.thrower} onChange={e => f("thrower", e.target.value)}>
                         <option value="">— None —</option>
                         {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Receiver</label>
-                      <select style={inputStyle} value={form.receiver} onChange={e => f("receiver", e.target.value)}>
+                      <select style={mInputStyle} value={form.receiver} onChange={e => f("receiver", e.target.value)}>
                         <option value="">— None —</option>
                         {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Ball Carrier</label>
-                      <select style={inputStyle} value={form.carrier} onChange={e => f("carrier", e.target.value)}>
+                      <select style={mInputStyle} value={form.carrier} onChange={e => f("carrier", e.target.value)}>
                         <option value="">— None —</option>
                         {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:14, marginBottom:20 }}>
+                  <div style={{ display:"grid", gridTemplateColumns: isMobile ? cols2 : "1fr 2fr", gap:14, marginBottom:20 }}>
                     <div><label style={labelStyle}>Yards Gained</label>
-                      <input style={inputStyle} type="number" placeholder="0" value={form.yardsGained} onChange={e => f("yardsGained", e.target.value)} />
+                      <input style={mInputStyle} type="number" placeholder="0" value={form.yardsGained} onChange={e => f("yardsGained", e.target.value)} />
                     </div>
                     <div><label style={labelStyle}>Notes</label>
-                      <input style={inputStyle} placeholder="Optional notes..." value={form.notes} onChange={e => f("notes", e.target.value)} />
+                      <input style={mInputStyle} placeholder="Optional notes..." value={form.notes} onChange={e => f("notes", e.target.value)} />
                     </div>
                   </div>
                   <button onClick={handleLogPlay} disabled={!form.outcome || !form.playType} style={{
-                    width:"100%", padding:"13px",
+                    width:"100%", padding: isMobile ? "16px" : "13px",
                     background:(!form.outcome||!form.playType)?"#e5e7eb":`linear-gradient(135deg, ${THEME.primaryDark}, ${THEME.primary})`,
                     color:(!form.outcome||!form.playType)?"#9ca3af":"#fff",
-                    border:"none", borderRadius:10, fontSize:15, fontWeight:800,
+                    border:"none", borderRadius:10, fontSize: isMobile ? 17 : 15, fontWeight:800,
                     cursor:(!form.outcome||!form.playType)?"not-allowed":"pointer", fontFamily:"inherit",
                   }}>+ Log This Play</button>
                 </div>
@@ -1695,70 +1769,71 @@ const handleLogoDelete = async () => {
 
             {/* Defensive form */}
             {analyticsSubTab === "Defense" && (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 340px", gap:24 }}>
-                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:28 }}>
+              <div style={{ display:"grid", gridTemplateColumns:formSideBySide, gap:24 }}>
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding: isMobile ? 20 : 28 }}>
                   <div style={{ fontSize:18, fontWeight:800, color:"#111827", marginBottom:22 }}>Log a Defensive Play</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols3, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Game</label>
-                      <select style={inputStyle} value={defForm.game} onChange={e => df("game", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.game} onChange={e => df("game", e.target.value)}>
                         {games.map(g => <option key={g}>{g}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Quarter</label>
-                      <select style={inputStyle} value={defForm.quarter} onChange={e => df("quarter", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.quarter} onChange={e => df("quarter", e.target.value)}>
                         {["1","2","3","4","OT"].map(q => <option key={q}>{q}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Down</label>
-                      <select style={inputStyle} value={defForm.down} onChange={e => df("down", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.down} onChange={e => df("down", e.target.value)}>
                         {["1","2","3","4"].map(d => <option key={d}>{d}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols2, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Distance (yards)</label>
-                      <input style={inputStyle} type="number" placeholder="e.g. 10" value={defForm.distance} onChange={e => df("distance", e.target.value)} />
+                      <input style={mInputStyle} type="number" placeholder="e.g. 10" value={defForm.distance} onChange={e => df("distance", e.target.value)} />
                     </div>
                     <div><label style={labelStyle}>Play Type</label>
-                      <select style={inputStyle} value={defForm.playType} onChange={e => df("playType", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.playType} onChange={e => df("playType", e.target.value)}>
                         <option value="">— Select —</option>
                         <option>Pass</option><option>Run</option>
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols2, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Outcome *</label>
-                      <select style={inputStyle} value={defForm.outcome} onChange={e => df("outcome", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.outcome} onChange={e => df("outcome", e.target.value)}>
                         <option value="">— Select —</option>
                         {defOutcomes.map(o => <option key={o}>{o}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Player Action</label>
-                      <select style={inputStyle} value={defForm.playerAction} onChange={e => df("playerAction", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.playerAction} onChange={e => df("playerAction", e.target.value)}>
                         <option value="">— None —</option>
                         {playerActions.map(a => <option key={a}>{a}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:cols2, gap:14, marginBottom:14 }}>
                     <div><label style={labelStyle}>Player Who Made the Play</label>
-                      <select style={inputStyle} value={defForm.player} onChange={e => df("player", e.target.value)}>
+                      <select style={mInputStyle} value={defForm.player} onChange={e => df("player", e.target.value)}>
                         <option value="">— None —</option>
                         {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                     <div><label style={labelStyle}>Yards Allowed</label>
-                      <input style={inputStyle} type="number" placeholder="0" value={defForm.yardsAllowed} onChange={e => df("yardsAllowed", e.target.value)} />
+                      <input style={mInputStyle} type="number" placeholder="0" value={defForm.yardsAllowed} onChange={e => df("yardsAllowed", e.target.value)} />
                     </div>
                   </div>
                   <div style={{ marginBottom:20 }}>
                     <label style={labelStyle}>Notes</label>
-                    <input style={inputStyle} placeholder="Optional notes..." value={defForm.notes} onChange={e => df("notes", e.target.value)} />
+                    <input style={mInputStyle} placeholder="Optional notes..." value={defForm.notes} onChange={e => df("notes", e.target.value)} />
                   </div>
                   <button onClick={handleLogDefPlay} disabled={!defForm.outcome} style={{
-                    width:"100%", padding:"13px", background:!defForm.outcome?"#e5e7eb":"#dc2626",
+                    width:"100%", padding: isMobile ? "16px" : "13px",
+                    background:!defForm.outcome?"#e5e7eb":"#dc2626",
                     color:!defForm.outcome?"#9ca3af":"#fff", border:"none", borderRadius:10,
-                    fontWeight:800, fontSize:15, cursor:!defForm.outcome?"not-allowed":"pointer", fontFamily:"inherit",
+                    fontWeight:800, fontSize: isMobile ? 17 : 15, cursor:!defForm.outcome?"not-allowed":"pointer", fontFamily:"inherit",
                   }}>+ Log Defensive Play</button>
                 </div>
 
@@ -1979,7 +2054,7 @@ const handleLogoDelete = async () => {
                   No offensive plays logged yet. Head to <strong>Play Logger</strong> to get started.
                 </div>
               ) : (<>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14 }}>
+                <div style={{ display:"grid", gridTemplateColumns:cols4, gap:14 }}>
                   <StatCard label="Total Plays"   value={analytics.total}      accent={THEME.primary} />
                   <StatCard label="Successful"    value={`${analytics.successful} (${Math.round(analytics.successful/analytics.total*100)}%)`} accent="#059669" />
                   <StatCard label="Touchdowns"    value={analytics.tds}        accent="#059669" />
@@ -2362,7 +2437,7 @@ const handleLogoDelete = async () => {
               });
 
               return (<>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:14 }}>
+                <div style={{ display:"grid", gridTemplateColumns:cols4, gap:14 }}>
                   <StatCard label="Plays Defended"  value={totalPlays} accent="#dc2626" />
                   <StatCard label="Yards Allowed"   value={totalYardsAllowed} sub={`${(totalYardsAllowed/totalPlays).toFixed(1)} yds/play`} accent="#dc2626" />
                   <StatCard label="TDs Allowed"     value={tdAllowed}  accent="#dc2626" />
@@ -2593,7 +2668,7 @@ const handleLogoDelete = async () => {
                       {gPlays.length > 0 && (
                         <div>
                           <div style={{ fontSize:13, fontWeight:800, color:THEME.primaryDark, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>Offense</div>
-                          <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12, marginBottom:16 }}>
+                          <div style={{ display:"grid", gridTemplateColumns:cols4, gap:12, marginBottom:16 }}>
                             <StatCard label="Plays" value={gPlays.length} />
                             <StatCard label="Yards" value={`+${totalYards}`} accent={THEME.primary} />
                             <StatCard label="TDs"   value={tds} accent="#059669" />
@@ -2660,7 +2735,7 @@ const handleLogoDelete = async () => {
                         return (
                           <div>
                             <div style={{ fontSize:13, fontWeight:800, color:"#dc2626", textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>Defense</div>
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:12, marginBottom:16 }}>
+                            <div style={{ display:"grid", gridTemplateColumns:cols4, gap:12, marginBottom:16 }}>
                               <StatCard label="Plays Defended" value={gDPlays.length} />
                               <StatCard label="Yards Allowed"  value={dTotalYds} sub={`${gDPlays.length>0?(dTotalYds/gDPlays.length).toFixed(1):0} yds/play`} accent="#dc2626" />
                               <StatCard label="TDs Allowed"    value={dTDs} accent="#dc2626" />
@@ -2887,7 +2962,7 @@ const handleLogoDelete = async () => {
                         });
                         return (
                           <CollapsibleSection title="Defensive Stats" accentColor="#dc2626">
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:10, marginBottom:16 }}>
+                            <div style={{ display:"grid", gridTemplateColumns:cols4, gap:10, marginBottom:16 }}>
                               {[["PBUs",dStats.pbu,"#6366f1"],["Flag Pulls",dStats.flagPull,"#4a6fa5"],["INTs",dStats.intAction,"#059669"],["Sacks",dStats.sackAction,"#059669"]].map(([label,val,color]) => (
                                 <div key={label} style={{ background:"#f8fafc", borderRadius:10, padding:"10px 12px", textAlign:"center" }}>
                                   <div style={{ fontSize:20, fontWeight:900, color }}>{val}</div>
