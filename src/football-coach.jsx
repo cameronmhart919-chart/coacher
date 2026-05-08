@@ -851,10 +851,11 @@ export default function FootballCoach() {
   const [tableLayouts, setTableLayouts] = useState(DEFAULT_TABLE_LAYOUTS);
   const [draggingCol,   setDraggingCol]   = useState(null); // { tableKey, colIndex }
   const [tableOrder,    setTableOrder]    = useState([
-    { key:"throwers",  type:"builtin", visible:true, page:"offense" },
-    { key:"recrun",    type:"builtin", visible:true, page:"offense" },
-    { key:"playcodes", type:"builtin", visible:true, page:"offense" },
-    { key:"bygame",    type:"builtin", visible:true, page:"offense" },
+    { key:"throwers",   type:"builtin", visible:true, page:"offense" },
+    { key:"recrun",     type:"builtin", visible:true, page:"offense" },
+    { key:"playcodes",  type:"builtin", visible:true, page:"offense" },
+    { key:"bygame",     type:"builtin", visible:true, page:"offense" },
+    { key:"trendChart", type:"trend",   visible:true, page:"both" },
   ]);
   const [draggingTable, setDraggingTable] = useState(null);
   const [editingTable,  setEditingTable]  = useState(null); // null | { key, type, name?, dimension?, metricColumns?, isNew? }
@@ -1972,52 +1973,6 @@ const handleLogoDelete = async () => {
                   <StatCard label="Total Yards"   value={`+${analytics.totalYards}`} accent={THEME.primary} />
                 </div>
 
-                {/* Trend Chart — Offense */}
-                {offenseByGame.length >= 2 && (() => {
-                  const activeMetrics = OFFENSE_METRICS.filter(m => offenseTrendMetrics.includes(m.key));
-                  const toggleMetric = (key) => setOffenseTrendMetrics(prev =>
-                    prev.includes(key)
-                      ? (prev.length > 1 ? prev.filter(k => k !== key) : prev)
-                      : prev.length < 4 ? [...prev, key] : prev
-                  );
-                  return (
-                    <CollapsibleSection title="Trend Chart" subtitle="Game-over-game performance · select up to 4 metrics" defaultOpen={true}>
-                      {/* Metric selector */}
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
-                        {OFFENSE_METRICS.map((m, mi) => {
-                          const active = offenseTrendMetrics.includes(m.key);
-                          const colorIdx = offenseTrendMetrics.indexOf(m.key);
-                          const chipColor = active ? CHART_COLORS[colorIdx % CHART_COLORS.length] : undefined;
-                          return (
-                            <button key={m.key} onClick={() => toggleMetric(m.key)} style={{
-                              padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:active?700:500,
-                              border:`1.5px solid ${active ? chipColor : "#d1d5db"}`,
-                              background: active ? chipColor : "#f8fafc",
-                              color: active ? "#fff" : "#6b7280",
-                              cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
-                            }}>
-                              {m.label}
-                            </button>
-                          );
-                        })}
-                        {offenseTrendMetrics.length >= 4 && (
-                          <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center", marginLeft:4 }}>Max 4 metrics</span>
-                        )}
-                      </div>
-                      {/* Legend */}
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:12, marginBottom:12 }}>
-                        {activeMetrics.map((m, mi) => (
-                          <div key={m.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color:"#374151" }}>
-                            <div style={{ width:20, height:3, borderRadius:2, background:CHART_COLORS[mi % CHART_COLORS.length] }} />
-                            {m.label}
-                          </div>
-                        ))}
-                      </div>
-                      <TrendChart gameData={offenseByGame} metrics={activeMetrics} />
-                    </CollapsibleSection>
-                  );
-                })()}
-
                 {/* Play type breakdown */}
                 {Object.entries(analytics.byType).length > 0 && (
                   <CollapsibleSection title="Play Type Breakdown">
@@ -2039,326 +1994,309 @@ const handleLogoDelete = async () => {
                   </CollapsibleSection>
                 )}
 
-                {/* Throwers table */}
-                {tableOrder.find(t=>t.key==="throwers") && Object.values(analytics.byPlayer).some(p => p.isThrower) && (
-                  <CollapsibleSection title="Stats by Player — Throwers" subtitle="Att = Pass attempts · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att">
-                    {(() => {
-                      const tLayout = tableLayouts.throwers || DEFAULT_TABLE_LAYOUTS.throwers;
-                      const tCols = tLayout.columns.filter(c => c.visible);
-                      const pFilter = tLayout.playerFilter || "all";
-                      return (
-                    <div style={{ overflowX:"auto" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
-                      <thead><tr style={{ background:THEME.buttonBg }}>
-                        {tCols.map((col, ci) => (
-                          col.key === "name" ? <SortTh key={col.key} tableKey="throwers" colKey="name" left sticky={ci===0}>{col.label}</SortTh>
-                          : col.key === "position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left", ...(ci===0?{position:"sticky",left:0,zIndex:3,background:THEME.buttonBg,boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{col.label}</th>
-                          : <SortTh key={col.key} tableKey="throwers" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
-                        ))}
-                        {(tableLayouts.throwers?.metricColumns||[]).map(mid => {
-                          const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                          return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
-                        })}
-                      </tr></thead>
-                      <tbody>
-                        {getSortedRows("throwers", Object.values(analytics.byPlayer).filter(p=>p.isThrower && (pFilter==="all"||p.position===pFilter)).map(p => ({ ...p, cmpPct: p.attempts>0?p.receptions/p.attempts:0, intPct: p.attempts>0?p.ints/p.attempts:0, att:p.attempts })), "name").map((p,i) => (
-                          <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                            {tCols.map((col, ci) => {
-                              const v = p[col.key];
-                              const rowBg = i%2===0?"#fff":"#fafafa";
-                              const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
-                              if (col.key === "name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827", ...stickyFirst }}>{p.name}</td>;
-                              if (col.key === "position") return <td key={col.key} style={{ padding:"9px 10px", ...stickyFirst }}><Badge color="purple">{p.position}</Badge></td>;
-                              if (col.key === "tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
-                              if (col.key === "ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{p.ints>0?<Badge color="red">{p.ints}</Badge>:"—"}</td>;
-                              if (col.key === "cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
-                              if (col.key === "intPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", fontWeight:700, ...stickyFirst }}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>;
-                              if (col.key === "yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
-                              if (col.key === "recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
-                              return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
-                            })}
-                            {(tableLayouts.throwers?.metricColumns||[]).map(mid => {
-                              const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                              const pPlays = filteredPlays.filter(fp => [String(fp.thrower),String(fp.receiver),String(fp.carrier)].includes(String(p.id||"")));
-                              const val = computeMetricVal(m, pPlays);
-                              return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
-                            })}
-                          </tr>
-                        ))}
-                        {(() => {
-                          const rows = Object.values(analytics.byPlayer).filter(p => p.isThrower && (tLayout.playerFilter==="all"||p.position===tLayout.playerFilter));
-                          const t = { att:0, receptions:0, recGain:0, incompletions:0, tds:0, ints:0, drops:0, throwAways:0, sacks:0, xp1:0, xp2:0, xp3:0, yards:0 };
-                          rows.forEach(p => { t.att+=p.attempts||0; t.receptions+=p.receptions||0; t.recGain+=p.recGain||0; t.incompletions+=p.incompletions||0; t.tds+=p.tds||0; t.ints+=p.ints||0; t.drops+=p.drops||0; t.throwAways+=p.throwAways||0; t.sacks+=p.sacks||0; t.xp1+=p.xp1||0; t.xp2+=p.xp2||0; t.xp3+=p.xp3||0; t.yards+=p.yards||0; });
-                          const valMap = { att:t.att, receptions:t.receptions, cmpPct:t.att>0?`${Math.round(t.receptions/t.att*100)}%`:"—", intPct:t.att>0?`${(t.ints/t.att*100).toFixed(1)}%`:"—", recGain:t.recGain, incompletions:t.incompletions, tds:t.tds, ints:t.ints, drops:t.drops, throwAways:t.throwAways, sacks:t.sacks, xp1:t.xp1, xp2:t.xp2, xp3:t.xp3, yards:t.yards>0?`+${t.yards}`:t.yards };
-                          return (
-                            <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              {tCols.map((col,ci) => (
-                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
-                                : col.key==="position" ? <td key={col.key}></td>
-                                : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
+                {/* Tables + trend chart, ordered by tableOrder */}
+                {(() => {
+                  const allDefPlaysFilt = filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame);
+                  return tableOrder
+                    .filter(te => !te.page || te.page === "offense" || te.page === "both")
+                    .map(te => {
+                      // ── Trend Chart ──
+                      if (te.type === "trend") {
+                        if (offenseByGame.length < 2) return null;
+                        const activeMetrics = OFFENSE_METRICS.filter(m => offenseTrendMetrics.includes(m.key));
+                        const toggleMetric = (key) => setOffenseTrendMetrics(prev =>
+                          prev.includes(key) ? (prev.length > 1 ? prev.filter(k => k !== key) : prev) : prev.length < 4 ? [...prev, key] : prev
+                        );
+                        return (
+                          <CollapsibleSection key="trendChart" title="Trend Chart" subtitle="Game-over-game performance · select up to 4 metrics" defaultOpen={true}>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                              {OFFENSE_METRICS.map(m => {
+                                const active = offenseTrendMetrics.includes(m.key);
+                                const colorIdx = offenseTrendMetrics.indexOf(m.key);
+                                const chipColor = active ? CHART_COLORS[colorIdx % CHART_COLORS.length] : undefined;
+                                return (<button key={m.key} onClick={() => toggleMetric(m.key)} style={{ padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:active?700:500, border:`1.5px solid ${active?chipColor:"#d1d5db"}`, background:active?chipColor:"#f8fafc", color:active?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>{m.label}</button>);
+                              })}
+                              {offenseTrendMetrics.length >= 4 && <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center", marginLeft:4 }}>Max 4 metrics</span>}
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:12, marginBottom:12 }}>
+                              {activeMetrics.map((m, mi) => (
+                                <div key={m.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color:"#374151" }}>
+                                  <div style={{ width:20, height:3, borderRadius:2, background:CHART_COLORS[mi % CHART_COLORS.length] }} />{m.label}
+                                </div>
                               ))}
-                            </tr>
-                          );
-                        })()}
-                      </tbody>
-                    </table>
-                    </div>
-                  );
-                  })()}
-                  </CollapsibleSection>
-                )}
-
-                {/* Receivers & Runners table */}
-                {tableOrder.find(t=>t.key==="recrun") && Object.values(analytics.byPlayer).some(p=>(p.isReceiver||p.isRunner)) && (
-                  <CollapsibleSection title="Stats by Player — Receivers & Runners" subtitle="Att = Times targeted · Rec = Receptions · Cmp% = Rec/Att">
-                    {(() => {
-                    const rrLayout = tableLayouts.recrun || DEFAULT_TABLE_LAYOUTS.recrun;
-                    const rrCols = rrLayout.columns.filter(c => c.visible);
-                    const rrFilter = rrLayout.playerFilter || "all";
-                    return (
-                    <div style={{ overflowX:"auto" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
-                      <thead><tr style={{ background:THEME.buttonBg }}>
-                        {rrCols.map((col, ci) => (
-                          col.key==="name" ? <SortTh key={col.key} tableKey="recrun" colKey="name" left sticky={ci===0}>{col.label}</SortTh>
-                          : col.key==="position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left", ...(ci===0?{position:"sticky",left:0,zIndex:3,background:THEME.buttonBg,boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{col.label}</th>
-                          : <SortTh key={col.key} tableKey="recrun" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
-                        ))}
-                        {(tableLayouts.recrun?.metricColumns||[]).map(mid => {
-                          const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                          return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
-                        })}
-                      </tr></thead>
-                      <tbody>
-                        {getSortedRows("recrun", Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)&&(rrFilter==="all"||p.position===rrFilter)).map(p => ({ name:p.name, position:p.position, attempts:p.recRunStats.attempts||0, receptions:p.recRunStats.receptions||0, cmpPct:p.recRunStats.attempts>0?p.recRunStats.receptions/p.recRunStats.attempts:0, recGain:p.recRunStats.recGain||0, drops:p.recRunStats.drops||0, runs:p.recRunStats.runs||0, runGain:p.recRunStats.runGain||0, runLoss:p.recRunStats.runLoss||0, tds:p.recRunStats.tds||0, xp1:p.recRunStats.xp1||0, xp2:p.recRunStats.xp2||0, xp3:p.recRunStats.xp3||0, totalYds:(p.recRunStats.passYards||0)+(p.recRunStats.runYards||0), passYards:p.recRunStats.passYards||0, runYards:p.recRunStats.runYards||0 })), "name").map((p,i) => (
-                            <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              {rrCols.map((col, ci) => {
-                                const v = p[col.key];
-                                const rowBg = i%2===0?"#fff":"#fafafa";
-                                const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
-                                if (col.key==="name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827", ...stickyFirst }}>{p.name}</td>;
-                                if (col.key==="position") return <td key={col.key} style={{ padding:"9px 10px", ...stickyFirst }}><Badge color="purple">{p.position}</Badge></td>;
-                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
-                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
-                                if (col.key==="recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
-                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...stickyFirst }}>{v||"—"}</td>;
-                                if (col.key==="totalYds"||col.key==="passYards"||col.key==="runYards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
-                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
-                              })}
-                              {(tableLayouts.recrun?.metricColumns||[]).map(mid => {
-                                const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                                const pPlays = filteredPlays.filter(fp => [String(fp.thrower),String(fp.receiver),String(fp.carrier)].includes(String(players.find(pl=>pl.name===p.name)?.id||"")));
-                                const val = computeMetricVal(m, pPlays);
-                                return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
-                              })}
-                            </tr>
-                        ))}
-                        {(() => {
-                          const rows = Object.values(analytics.byPlayer).filter(p => (p.isReceiver||p.isRunner)&&(rrFilter==="all"||p.position===rrFilter));
-                          const t = { attempts:0, receptions:0, recGain:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, passYards:0, runYards:0 };
-                          rows.forEach(p => { Object.keys(t).forEach(k => { t[k] += p.recRunStats[k] || 0; }); });
-                          const totalYds = t.passYards + t.runYards;
-                          const valMap = { attempts:t.attempts, receptions:t.receptions, cmpPct:t.attempts>0?`${Math.round(t.receptions/t.attempts*100)}%`:"—", recGain:t.recGain, drops:t.drops, runs:t.runs, runGain:t.runGain, runLoss:t.runLoss, tds:t.tds, xp1:t.xp1, xp2:t.xp2, xp3:t.xp3, totalYds:totalYds>0?`+${totalYds}`:totalYds, passYards:t.passYards>0?`+${t.passYards}`:t.passYards, runYards:t.runYards>0?`+${t.runYards}`:t.runYards };
-                          return (
-                            <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              {rrCols.map((col,ci) => (
-                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
-                                : col.key==="position" ? <td key={col.key}></td>
-                                : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
-                              ))}
-                            </tr>
-                          );
-                        })()}
-                      </tbody>
-                    </table>
-                    </div>
-                    );
-                    })()}
-                  </CollapsibleSection>
-                )}
-
-                {/* Stats by Play Code table */}
-                {tableOrder.find(t=>t.key==="playcodes") && Object.keys(analytics.byCode).length > 0 && (
-                  <CollapsibleSection title="Stats by Play Code" subtitle="Full breakdown of every play code used this season.">
-                    {(() => {
-                    const pcLayout = tableLayouts.playcodes || DEFAULT_TABLE_LAYOUTS.playcodes;
-                    const pcCols = pcLayout.columns.filter(c => c.visible);
-                    return (
-                    <div style={{ overflowX:"auto" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
-                      <thead><tr style={{ background:THEME.buttonBg }}>
-                        {pcCols.map((col, ci) => (
-                          col.key==="code" ? <SortTh key={col.key} tableKey="playcodes" colKey="code" left sticky={ci===0}>{col.label}</SortTh>
-                          : <SortTh key={col.key} tableKey="playcodes" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
-                        ))}
-                        {(tableLayouts.playcodes?.metricColumns||[]).map(mid => {
-                          const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                          return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
-                        })}
-                      </tr></thead>
-                      <tbody>
-                        {getSortedRows("playcodes", Object.values(analytics.byCode).map(s => ({ ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0, tdPct:s.attempts>0?s.tds/s.attempts:0 })), "code").map((s,i) => {
-                          return (
-                            <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              {pcCols.map((col, ci) => {
-                                const v = s[col.key];
-                                const rowBg = i%2===0?"#fff":"#fafafa";
-                                const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
-                                if (col.key==="code") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark, ...stickyFirst }}>{s.code}</td>;
-                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
-                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
-                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
-                                if (col.key==="tdPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", fontWeight:700, ...stickyFirst }}>{s.attempts>0?`${(s.tds/s.attempts*100).toFixed(1)}%`:"—"}</td>;
-                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
-                                if (col.key==="recLoss"||col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...stickyFirst }}>{v||"—"}</td>;
-                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
-                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
-                              })}
-                              {(tableLayouts.playcodes?.metricColumns||[]).map(mid => {
-                                const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                                const cPlays = filteredPlays.filter(fp => fp.playCode===s.code);
-                                const val = computeMetricVal(m, cPlays);
-                                return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
-                              })}
-                            </tr>
-                          );
-                        })}
-                        {(() => {
-                          const ct = analytics.codeTotals;
-                          const valMap = { code:"TOTALS", attempts:ct.attempts, receptions:ct.receptions, cmpPct:ct.attempts>0?`${Math.round(ct.receptions/ct.attempts*100)}%`:"—", tdPct:ct.attempts>0?`${(ct.tds/ct.attempts*100).toFixed(1)}%`:"—", recGain:ct.recGain, recLoss:ct.recLoss, incompletions:ct.incompletions, drops:ct.drops, throwAways:ct.throwAways, sacks:ct.sacks, ints:ct.ints, runs:ct.runs, runGain:ct.runGain, runLoss:ct.runLoss, tds:ct.tds, xp1:ct.xp1, xp2:ct.xp2, xp3:ct.xp3, yards:ct.yards>0?`+${ct.yards}`:ct.yards };
-                          return (
-                            <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              {pcCols.map((col,ci) => (
-                                ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
-                                : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
-                              ))}
-                            </tr>
-                          );
-                        })()}
-                      </tbody>
-                    </table>
-                    </div>
-                    );
-                    })()}
-                  </CollapsibleSection>
-                )}
-              {/* Stats by Game table */}
-                {tableOrder.find(t=>t.key==="bygame") && (() => {
-                  const byGame = {};
-                  filteredPlays.forEach(p => {
-                    if (!byGame[p.game]) byGame[p.game] = {
-                      attempts:0, receptions:0, recGain:0, incompletions:0,
-                      drops:0, throwAways:0, sacks:0, ints:0,
-                      runs:0, runGain:0, runLoss:0, tds:0,
-                      xp1:0, xp2:0, xp3:0, yards:0,
-                    };
-                    const s = byGame[p.game];
-                    const o = (p.outcome || "").trim();
-                    const TD = tdOutcome;
-                    const isPass = p.playType === "Pass";
-                    const isRun  = !isPass;
-                    const isXP1 = o === "XP Converted - 1pt";
-                    const isXP2 = o === "XP Converted - 2pt";
-                    const isXP3 = o === "XP Converted - 3pt";
-                    const isXP  = isXP1 || isXP2 || isXP3;
-                    const isTD  = o === TD;
-                    const isInc = o === "Incomplete";
-                    const isDrop = o === "Drop";
-                    const isINT = o === "Interception" || o === "INT";
-                    const isTA  = o === "Throw Away";
-                    const isSack = o === "Sack";
-                    const isXPMissed = o === "XP Missed - 1pt" || o === "XP Missed - 2pt" || o === "XP Missed - 3pt";
-                    const isReception = !isInc && !isDrop && !isINT && !isTA && !isSack && !isXPMissed && o !== "";
-
-                    if (isPass && p.thrower) {
-                      s.attempts++;
-                      if (isINT)  s.ints++;
-                      if (isTA)   s.throwAways++;
-                      if (isSack) s.sacks++;
-                      if (isDrop) s.drops++;
-                      if (isInc)  s.incompletions++;
-                      if (isTD)   s.tds++;
-                      if (isXP1)  s.xp1++;
-                      if (isXP2)  s.xp2++;
-                      if (isXP3)  s.xp3++;
-                      if (isReception) { s.receptions++; s.yards += p.yardsGained || 0; }
-                      if (isTD || isXP || o === "Reception - Gain") s.recGain++;
-                    }
-                    if (isRun && p.carrier) {
-                      s.runs++;
-                      s.yards += p.yardsGained || 0;
-                      if (o === "Run - Gain" || isTD) s.runGain++;
-                      if (o === "Run - Loss") s.runLoss++;
-                      if (isTD) s.tds++;
-                    }
-                  });
-
-                  const gameRows = Object.entries(byGame).filter(([g, s]) => s.attempts + s.runs > 0);
-                  if (gameRows.length === 0) return null;
-
-                  const gt = { attempts:0, receptions:0, recGain:0, incompletions:0, drops:0, throwAways:0, sacks:0, ints:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, yards:0 };
-                  gameRows.forEach(([, s]) => { Object.keys(gt).forEach(k => { gt[k] += s[k] || 0; }); });
-
-                  return (
-                    <CollapsibleSection title="Stats by Game" subtitle="Offensive stats broken down per game.">
-                    {(() => {
-                    const bgLayout = tableLayouts.bygame || DEFAULT_TABLE_LAYOUTS.bygame;
-                    const bgCols = bgLayout.columns.filter(c => c.visible);
-                    return (
-                    <div style={{ overflowX:"auto" }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
-                        <thead><tr style={{ background:THEME.buttonBg }}>
-                          {bgCols.map((col, ci) => (
-                            col.key==="game" ? <SortTh key={col.key} tableKey="bygame" colKey="game" left sticky={ci===0}>{col.label}</SortTh>
-                            : <SortTh key={col.key} tableKey="bygame" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
-                          ))}
-                          {(tableLayouts.bygame?.metricColumns||[]).map(mid => {
-                            const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                            return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>;
-                          })}
-                        </tr></thead>
-                        <tbody>
-                          {getSortedRows("bygame", gameRows.map(([game, s]) => ({ game, ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0 })), "game").map((s, i) => (
-                            <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
-                              {bgCols.map((col, ci) => {
-                                const v = s[col.key];
-                                const rowBg = i%2===0?"#fff":"#fafafa";
-                                const stickyFirst = ci===0 ? { position:"sticky", left:0, zIndex:1, background:rowBg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" } : {};
-                                if (col.key==="game") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark, ...stickyFirst }}>{s.game}</td>;
-                                if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
-                                if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...stickyFirst }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
-                                if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...stickyFirst }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
-                                if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...stickyFirst }}>{v||"—"}</td>;
-                                if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...stickyFirst }}>{v||"—"}</td>;
-                                if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...stickyFirst }}>{v>0?`+${v}`:v||"—"}</td>;
-                                return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...stickyFirst }}>{v||"—"}</td>;
-                              })}
-                              {(tableLayouts.bygame?.metricColumns||[]).map(mid => {
-                                const m = allMetrics.find(x=>x.id===mid); if(!m) return null;
-                                const gPlays = filteredPlays.filter(fp => fp.game===s.game);
-                                const val = computeMetricVal(m, gPlays);
-                                return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>;
-                              })}
-                            </tr>
-                          ))}
-                          {(() => {
-                            const valMap = { game:"TOTALS", attempts:gt.attempts, receptions:gt.receptions, cmpPct:gt.attempts>0?`${Math.round(gt.receptions/gt.attempts*100)}%`:"—", recGain:gt.recGain, incompletions:gt.incompletions, drops:gt.drops, throwAways:gt.throwAways, sacks:gt.sacks, ints:gt.ints, runs:gt.runs, runGain:gt.runGain, runLoss:gt.runLoss, tds:gt.tds, xp1:gt.xp1, xp2:gt.xp2, xp3:gt.xp3, yards:gt.yards>0?`+${gt.yards}`:gt.yards };
-                            return (
-                              <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                                {bgCols.map((col,ci) => (
-                                  ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
-                                  : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{valMap[col.key]||"—"}</td>
+                            </div>
+                            <TrendChart gameData={offenseByGame} metrics={activeMetrics} />
+                          </CollapsibleSection>
+                        );
+                      }
+                      // ── Throwers ──
+                      if (te.key === "throwers") {
+                        if (!analytics || !Object.values(analytics.byPlayer).some(p => p.isThrower)) return null;
+                        const tLayout = tableLayouts.throwers || DEFAULT_TABLE_LAYOUTS.throwers;
+                        const tCols = tLayout.columns.filter(c => c.visible);
+                        const pFilter = tLayout.playerFilter || "all";
+                        const tTots = { att:0, receptions:0, recGain:0, incompletions:0, tds:0, ints:0, drops:0, throwAways:0, sacks:0, xp1:0, xp2:0, xp3:0, yards:0 };
+                        Object.values(analytics.byPlayer).filter(p => p.isThrower && (pFilter==="all"||p.position===pFilter)).forEach(p => { tTots.att+=p.attempts||0; tTots.receptions+=p.receptions||0; tTots.recGain+=p.recGain||0; tTots.incompletions+=p.incompletions||0; tTots.tds+=p.tds||0; tTots.ints+=p.ints||0; tTots.drops+=p.drops||0; tTots.throwAways+=p.throwAways||0; tTots.sacks+=p.sacks||0; tTots.xp1+=p.xp1||0; tTots.xp2+=p.xp2||0; tTots.xp3+=p.xp3||0; tTots.yards+=p.yards||0; });
+                        const tTotMap = { att:tTots.att, receptions:tTots.receptions, cmpPct:tTots.att>0?`${Math.round(tTots.receptions/tTots.att*100)}%`:"—", intPct:tTots.att>0?`${(tTots.ints/tTots.att*100).toFixed(1)}%`:"—", recGain:tTots.recGain, incompletions:tTots.incompletions, tds:tTots.tds, ints:tTots.ints, drops:tTots.drops, throwAways:tTots.throwAways, sacks:tTots.sacks, xp1:tTots.xp1, xp2:tTots.xp2, xp3:tTots.xp3, yards:tTots.yards>0?`+${tTots.yards}`:tTots.yards };
+                        return (
+                          <CollapsibleSection key="throwers" title="Stats by Player — Throwers" subtitle="Att = Pass attempts · Rec = Completions · Cmp% = Rec/Att · INT% = INTs/Att">
+                            <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
+                              <thead><tr style={{ background:THEME.buttonBg }}>
+                                {tCols.map((col, ci) => (
+                                  col.key === "name" ? <SortTh key={col.key} tableKey="throwers" colKey="name" left sticky={ci===0}>{col.label}</SortTh>
+                                  : col.key === "position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left", ...(ci===0?{position:"sticky",left:0,zIndex:3,background:THEME.buttonBg,boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{col.label}</th>
+                                  : <SortTh key={col.key} tableKey="throwers" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
                                 ))}
-                              </tr>
-                            );
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
-                    );
-                    })()}
-                  </CollapsibleSection>
-                );
+                                {(tableLayouts.throwers?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>; })}
+                              </tr></thead>
+                              <tbody>
+                                {getSortedRows("throwers", Object.values(analytics.byPlayer).filter(p=>p.isThrower && (pFilter==="all"||p.position===pFilter)).map(p => ({ ...p, cmpPct: p.attempts>0?p.receptions/p.attempts:0, intPct: p.attempts>0?p.ints/p.attempts:0, att:p.attempts })), "name").map((p,i) => (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                                    {tCols.map((col, ci) => {
+                                      const v = p[col.key]; const rowBg = i%2===0?"#fff":"#fafafa"; const sf = ci===0?{position:"sticky",left:0,zIndex:1,background:rowBg,boxShadow:"2px 0 5px rgba(0,0,0,0.07)"}:{};
+                                      if (col.key === "name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827", ...sf }}>{p.name}</td>;
+                                      if (col.key === "position") return <td key={col.key} style={{ padding:"9px 10px", ...sf }}><Badge color="purple">{p.position}</Badge></td>;
+                                      if (col.key === "tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
+                                      if (col.key === "ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{p.ints>0?<Badge color="red">{p.ints}</Badge>:"—"}</td>;
+                                      if (col.key === "cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...sf }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
+                                      if (col.key === "intPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", fontWeight:700, ...sf }}>{p.attempts>0?`${(p.ints/p.attempts*100).toFixed(1)}%`:"—"}</td>;
+                                      if (col.key === "yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...sf }}>{v>0?`+${v}`:v||"—"}</td>;
+                                      if (col.key === "recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...sf }}>{v||"—"}</td>;
+                                      return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...sf }}>{v||"—"}</td>;
+                                    })}
+                                    {(tableLayouts.throwers?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; const pPlays = filteredPlays.filter(fp => [String(fp.thrower),String(fp.receiver),String(fp.carrier)].includes(String(p.id||""))); const val = computeMetricVal(m, pPlays); return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>; })}
+                                  </tr>
+                                ))}
+                                <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                                  {tCols.map((col,ci) => (
+                                    ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
+                                    : col.key==="position" ? <td key={col.key}></td>
+                                    : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{tTotMap[col.key]||"—"}</td>
+                                  ))}
+                                </tr>
+                              </tbody>
+                            </table>
+                            </div>
+                          </CollapsibleSection>
+                        );
+                      }
+                      // ── Receivers & Runners ──
+                      if (te.key === "recrun") {
+                        if (!analytics || !Object.values(analytics.byPlayer).some(p=>(p.isReceiver||p.isRunner))) return null;
+                        const rrLayout = tableLayouts.recrun || DEFAULT_TABLE_LAYOUTS.recrun;
+                        const rrCols = rrLayout.columns.filter(c => c.visible);
+                        const rrFilter = rrLayout.playerFilter || "all";
+                        const rrRows = Object.values(analytics.byPlayer).filter(p=>(p.isReceiver||p.isRunner)&&(rrFilter==="all"||p.position===rrFilter));
+                        const rrT = { attempts:0, receptions:0, recGain:0, drops:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, passYards:0, runYards:0 };
+                        rrRows.forEach(p => { Object.keys(rrT).forEach(k => { rrT[k] += p.recRunStats[k] || 0; }); });
+                        const rrTotYds = rrT.passYards + rrT.runYards;
+                        const rrTotMap = { attempts:rrT.attempts, receptions:rrT.receptions, cmpPct:rrT.attempts>0?`${Math.round(rrT.receptions/rrT.attempts*100)}%`:"—", recGain:rrT.recGain, drops:rrT.drops, runs:rrT.runs, runGain:rrT.runGain, runLoss:rrT.runLoss, tds:rrT.tds, xp1:rrT.xp1, xp2:rrT.xp2, xp3:rrT.xp3, totalYds:rrTotYds>0?`+${rrTotYds}`:rrTotYds, passYards:rrT.passYards>0?`+${rrT.passYards}`:rrT.passYards, runYards:rrT.runYards>0?`+${rrT.runYards}`:rrT.runYards };
+                        return (
+                          <CollapsibleSection key="recrun" title="Stats by Player — Receivers & Runners" subtitle="Att = Times targeted · Rec = Receptions · Cmp% = Rec/Att">
+                            <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
+                              <thead><tr style={{ background:THEME.buttonBg }}>
+                                {rrCols.map((col, ci) => (
+                                  col.key==="name" ? <SortTh key={col.key} tableKey="recrun" colKey="name" left sticky={ci===0}>{col.label}</SortTh>
+                                  : col.key==="position" ? <th key={col.key} style={{ ...thStyle, textAlign:"left", ...(ci===0?{position:"sticky",left:0,zIndex:3,background:THEME.buttonBg,boxShadow:"2px 0 5px rgba(0,0,0,0.1)"}:{}) }}>{col.label}</th>
+                                  : <SortTh key={col.key} tableKey="recrun" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
+                                ))}
+                                {(tableLayouts.recrun?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>; })}
+                              </tr></thead>
+                              <tbody>
+                                {getSortedRows("recrun", rrRows.map(p => ({ name:p.name, position:p.position, attempts:p.recRunStats.attempts||0, receptions:p.recRunStats.receptions||0, cmpPct:p.recRunStats.attempts>0?p.recRunStats.receptions/p.recRunStats.attempts:0, recGain:p.recRunStats.recGain||0, drops:p.recRunStats.drops||0, runs:p.recRunStats.runs||0, runGain:p.recRunStats.runGain||0, runLoss:p.recRunStats.runLoss||0, tds:p.recRunStats.tds||0, xp1:p.recRunStats.xp1||0, xp2:p.recRunStats.xp2||0, xp3:p.recRunStats.xp3||0, totalYds:(p.recRunStats.passYards||0)+(p.recRunStats.runYards||0), passYards:p.recRunStats.passYards||0, runYards:p.recRunStats.runYards||0 })), "name").map((p,i) => (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                                    {rrCols.map((col, ci) => {
+                                      const v = p[col.key]; const rowBg = i%2===0?"#fff":"#fafafa"; const sf = ci===0?{position:"sticky",left:0,zIndex:1,background:rowBg,boxShadow:"2px 0 5px rgba(0,0,0,0.07)"}:{};
+                                      if (col.key==="name") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:700, color:"#111827", ...sf }}>{p.name}</td>;
+                                      if (col.key==="position") return <td key={col.key} style={{ padding:"9px 10px", ...sf }}><Badge color="purple">{p.position}</Badge></td>;
+                                      if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{p.tds>0?<Badge color="green">{p.tds}</Badge>:"—"}</td>;
+                                      if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...sf }}>{p.attempts>0?`${Math.round(p.receptions/p.attempts*100)}%`:"—"}</td>;
+                                      if (col.key==="recGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...sf }}>{v||"—"}</td>;
+                                      if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...sf }}>{v||"—"}</td>;
+                                      if (col.key==="totalYds"||col.key==="passYards"||col.key==="runYards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...sf }}>{v>0?`+${v}`:v||"—"}</td>;
+                                      return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...sf }}>{v||"—"}</td>;
+                                    })}
+                                    {(tableLayouts.recrun?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; const pPlays = filteredPlays.filter(fp => [String(fp.thrower),String(fp.receiver),String(fp.carrier)].includes(String(players.find(pl=>pl.name===p.name)?.id||""))); const val = computeMetricVal(m, pPlays); return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>; })}
+                                  </tr>
+                                ))}
+                                <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                                  {rrCols.map((col,ci) => (
+                                    ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
+                                    : col.key==="position" ? <td key={col.key}></td>
+                                    : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{rrTotMap[col.key]||"—"}</td>
+                                  ))}
+                                </tr>
+                              </tbody>
+                            </table>
+                            </div>
+                          </CollapsibleSection>
+                        );
+                      }
+                      // ── Play Codes ──
+                      if (te.key === "playcodes") {
+                        if (!analytics || !Object.keys(analytics.byCode).length) return null;
+                        const pcLayout = tableLayouts.playcodes || DEFAULT_TABLE_LAYOUTS.playcodes;
+                        const pcCols = pcLayout.columns.filter(c => c.visible);
+                        const ct = analytics.codeTotals;
+                        const pcTotMap = { code:"TOTALS", attempts:ct.attempts, receptions:ct.receptions, cmpPct:ct.attempts>0?`${Math.round(ct.receptions/ct.attempts*100)}%`:"—", tdPct:ct.attempts>0?`${(ct.tds/ct.attempts*100).toFixed(1)}%`:"—", recGain:ct.recGain, recLoss:ct.recLoss, incompletions:ct.incompletions, drops:ct.drops, throwAways:ct.throwAways, sacks:ct.sacks, ints:ct.ints, runs:ct.runs, runGain:ct.runGain, runLoss:ct.runLoss, tds:ct.tds, xp1:ct.xp1, xp2:ct.xp2, xp3:ct.xp3, yards:ct.yards>0?`+${ct.yards}`:ct.yards };
+                        return (
+                          <CollapsibleSection key="playcodes" title="Stats by Play Code" subtitle="Full breakdown of every play code used this season.">
+                            <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
+                              <thead><tr style={{ background:THEME.buttonBg }}>
+                                {pcCols.map((col, ci) => (
+                                  col.key==="code" ? <SortTh key={col.key} tableKey="playcodes" colKey="code" left sticky={ci===0}>{col.label}</SortTh>
+                                  : <SortTh key={col.key} tableKey="playcodes" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
+                                ))}
+                                {(tableLayouts.playcodes?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>; })}
+                              </tr></thead>
+                              <tbody>
+                                {getSortedRows("playcodes", Object.values(analytics.byCode).map(s => ({ ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0, tdPct:s.attempts>0?s.tds/s.attempts:0 })), "code").map((s,i) => (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                                    {pcCols.map((col, ci) => {
+                                      const v = s[col.key]; const rowBg = i%2===0?"#fff":"#fafafa"; const sf = ci===0?{position:"sticky",left:0,zIndex:1,background:rowBg,boxShadow:"2px 0 5px rgba(0,0,0,0.07)"}:{};
+                                      if (col.key==="code") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark, ...sf }}>{s.code}</td>;
+                                      if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
+                                      if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
+                                      if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...sf }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
+                                      if (col.key==="tdPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", fontWeight:700, ...sf }}>{s.attempts>0?`${(s.tds/s.attempts*100).toFixed(1)}%`:"—"}</td>;
+                                      if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...sf }}>{v||"—"}</td>;
+                                      if (col.key==="recLoss"||col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...sf }}>{v||"—"}</td>;
+                                      if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...sf }}>{v>0?`+${v}`:v||"—"}</td>;
+                                      return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...sf }}>{v||"—"}</td>;
+                                    })}
+                                    {(tableLayouts.playcodes?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; const cPlays = filteredPlays.filter(fp => fp.playCode===s.code); const val = computeMetricVal(m, cPlays); return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>; })}
+                                  </tr>
+                                ))}
+                                <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                                  {pcCols.map((col,ci) => (
+                                    ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
+                                    : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{pcTotMap[col.key]||"—"}</td>
+                                  ))}
+                                </tr>
+                              </tbody>
+                            </table>
+                            </div>
+                          </CollapsibleSection>
+                        );
+                      }
+                      // ── Stats by Game ──
+                      if (te.key === "bygame") {
+                        const byGame = {};
+                        filteredPlays.forEach(p => {
+                          if (!byGame[p.game]) byGame[p.game] = { attempts:0, receptions:0, recGain:0, incompletions:0, drops:0, throwAways:0, sacks:0, ints:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, yards:0 };
+                          const s = byGame[p.game]; const o = (p.outcome||"").trim(); const TD = tdOutcome; const isPass = p.playType==="Pass"; const isRun = !isPass;
+                          const isXP1=o==="XP Converted - 1pt",isXP2=o==="XP Converted - 2pt",isXP3=o==="XP Converted - 3pt",isXP=isXP1||isXP2||isXP3,isTD=o===TD,isInc=o==="Incomplete",isDrop=o==="Drop",isINT=o==="Interception"||o==="INT",isTA=o==="Throw Away",isSack=o==="Sack",isXPMissed=o==="XP Missed - 1pt"||o==="XP Missed - 2pt"||o==="XP Missed - 3pt";
+                          const isReception=!isInc&&!isDrop&&!isINT&&!isTA&&!isSack&&!isXPMissed&&o!=="";
+                          if (isPass&&p.thrower){s.attempts++;if(isINT)s.ints++;if(isTA)s.throwAways++;if(isSack)s.sacks++;if(isDrop)s.drops++;if(isInc)s.incompletions++;if(isTD)s.tds++;if(isXP1)s.xp1++;if(isXP2)s.xp2++;if(isXP3)s.xp3++;if(isReception){s.receptions++;s.yards+=p.yardsGained||0;}if(isTD||isXP||o==="Reception - Gain")s.recGain++;}
+                          if (isRun&&p.carrier){s.runs++;s.yards+=p.yardsGained||0;if(o==="Run - Gain"||isTD)s.runGain++;if(o==="Run - Loss")s.runLoss++;if(isTD)s.tds++;}
+                        });
+                        const gameRows = Object.entries(byGame).filter(([,s]) => s.attempts+s.runs>0);
+                        if (!gameRows.length) return null;
+                        const gt = { attempts:0, receptions:0, recGain:0, incompletions:0, drops:0, throwAways:0, sacks:0, ints:0, runs:0, runGain:0, runLoss:0, tds:0, xp1:0, xp2:0, xp3:0, yards:0 };
+                        gameRows.forEach(([,s]) => { Object.keys(gt).forEach(k => { gt[k]+=s[k]||0; }); });
+                        const bgLayout = tableLayouts.bygame || DEFAULT_TABLE_LAYOUTS.bygame;
+                        const bgCols = bgLayout.columns.filter(c => c.visible);
+                        const bgTotMap = { game:"TOTALS", attempts:gt.attempts, receptions:gt.receptions, cmpPct:gt.attempts>0?`${Math.round(gt.receptions/gt.attempts*100)}%`:"—", recGain:gt.recGain, incompletions:gt.incompletions, drops:gt.drops, throwAways:gt.throwAways, sacks:gt.sacks, ints:gt.ints, runs:gt.runs, runGain:gt.runGain, runLoss:gt.runLoss, tds:gt.tds, xp1:gt.xp1, xp2:gt.xp2, xp3:gt.xp3, yards:gt.yards>0?`+${gt.yards}`:gt.yards };
+                        return (
+                          <CollapsibleSection key="bygame" title="Stats by Game" subtitle="Offensive stats broken down per game.">
+                            <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:900 }}>
+                              <thead><tr style={{ background:THEME.buttonBg }}>
+                                {bgCols.map((col, ci) => (
+                                  col.key==="game" ? <SortTh key={col.key} tableKey="bygame" colKey="game" left sticky={ci===0}>{col.label}</SortTh>
+                                  : <SortTh key={col.key} tableKey="bygame" colKey={col.key} sticky={ci===0}>{col.label}</SortTh>
+                                ))}
+                                {(tableLayouts.bygame?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; return <th key={mid} style={{ ...thStyle, background:"rgba(99,102,241,0.7)" }}>{m.name}</th>; })}
+                              </tr></thead>
+                              <tbody>
+                                {getSortedRows("bygame", gameRows.map(([game, s]) => ({ game, ...s, cmpPct:s.attempts>0?s.receptions/s.attempts:0 })), "game").map((s, i) => (
+                                  <tr key={i} style={{ borderBottom:"1px solid #f3f4f6", background:i%2===0?"#fff":"#fafafa" }}>
+                                    {bgCols.map((col, ci) => {
+                                      const v = s[col.key]; const rowBg = i%2===0?"#fff":"#fafafa"; const sf = ci===0?{position:"sticky",left:0,zIndex:1,background:rowBg,boxShadow:"2px 0 5px rgba(0,0,0,0.07)"}:{};
+                                      if (col.key==="game") return <td key={col.key} style={{ padding:"9px 10px", fontWeight:800, color:THEME.primaryDark, ...sf }}>{s.game}</td>;
+                                      if (col.key==="tds") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{s.tds>0?<Badge color="green">{s.tds}</Badge>:"—"}</td>;
+                                      if (col.key==="ints") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", ...sf }}>{s.ints>0?<Badge color="red">{s.ints}</Badge>:"—"}</td>;
+                                      if (col.key==="cmpPct") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700, ...sf }}>{s.attempts>0?`${Math.round(s.receptions/s.attempts*100)}%`:"—"}</td>;
+                                      if (col.key==="recGain"||col.key==="runGain") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#059669", ...sf }}>{v||"—"}</td>;
+                                      if (col.key==="runLoss") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#dc2626", ...sf }}>{v||"—"}</td>;
+                                      if (col.key==="yards") return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:THEME.primary, ...sf }}>{v>0?`+${v}`:v||"—"}</td>;
+                                      return <td key={col.key} style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280", ...sf }}>{v||"—"}</td>;
+                                    })}
+                                    {(tableLayouts.bygame?.metricColumns||[]).map(mid => { const m = allMetrics.find(x=>x.id===mid); if(!m) return null; const gPlays = filteredPlays.filter(fp => fp.game===s.game); const val = computeMetricVal(m, gPlays); return <td key={mid} style={{ padding:"9px 10px", textAlign:"center", color:"#6366f1", fontWeight:700 }}>{m.valueType==="yards"?val.yards:m.valueType==="both"?`${val.count}/${val.yards}`:val.count}</td>; })}
+                                  </tr>
+                                ))}
+                                <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                                  {bgCols.map((col,ci) => (
+                                    ci===0 ? <td key={col.key} style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
+                                    : <td key={col.key} style={{ padding:"10px 10px", textAlign:"center", fontWeight:800, color:"#111827" }}>{bgTotMap[col.key]||"—"}</td>
+                                  ))}
+                                </tr>
+                              </tbody>
+                            </table>
+                            </div>
+                          </CollapsibleSection>
+                        );
+                      }
+                      // ── Custom table ──
+                      if (te.type === "custom") {
+                        const layout = tableLayouts[te.key]; if (!layout) return null;
+                        const metricCols = (layout.metricColumns||[]).map(mid => allMetrics.find(m=>m.id===mid)).filter(Boolean);
+                        if (!metricCols.length) return (
+                          <CollapsibleSection key={te.key} title={layout.name||te.key} subtitle="No metrics configured — edit this table to add metrics.">
+                            <div style={{ color:"#9ca3af", fontSize:13 }}>Add custom metrics in Settings → Analytics Config → Table Layout.</div>
+                          </CollapsibleSection>
+                        );
+                        const dim = layout.dimension || "player";
+                        let rows = [];
+                        if (dim === "player") {
+                          const playerMap = {}; players.forEach(pl => { playerMap[pl.id] = { label:pl.name, position:pl.position, plays:[], defPlays:[] }; });
+                          filteredPlays.forEach(p => { [p.thrower,p.receiver,p.carrier].filter(Boolean).forEach(pid => { if(playerMap[pid]) playerMap[pid].plays.push(p); }); });
+                          allDefPlaysFilt.forEach(p => { if(p.player&&playerMap[p.player]) playerMap[p.player].defPlays.push(p); });
+                          rows = Object.entries(playerMap).filter(([,v])=>v.plays.length||v.defPlays.length).map(([,v])=>({ label:v.label, subtitle:v.position, allPlays:[...v.plays,...v.defPlays] })).sort((a,b)=>a.label.localeCompare(b.label));
+                        } else if (dim === "game") {
+                          const gameMap = {}; games.forEach(g => { gameMap[g] = { label:g, allPlays:[] }; });
+                          [...filteredPlays,...allDefPlaysFilt].forEach(p => { if(gameMap[p.game]) gameMap[p.game].allPlays.push(p); });
+                          rows = Object.values(gameMap).filter(v=>v.allPlays.length).sort((a,b)=>a.label.localeCompare(b.label));
+                        } else if (dim === "playCode") {
+                          const codeMap = {}; playCodes.forEach(pc => { codeMap[pc.code] = { label:pc.code, allPlays:[] }; });
+                          filteredPlays.filter(p=>p.playCode).forEach(p => { if(codeMap[p.playCode]) codeMap[p.playCode].allPlays.push(p); });
+                          rows = Object.values(codeMap).filter(v=>v.allPlays.length).sort((a,b)=>a.label.localeCompare(b.label));
+                        }
+                        return (
+                          <CollapsibleSection key={te.key} title={layout.name||te.key} subtitle={`${dim} view · ${metricCols.length} metric${metricCols.length!==1?"s":""}`}>
+                            <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                              <thead><tr style={{ background:THEME.buttonBg }}>
+                                <th style={{ ...thStyle, textAlign:"left", position:"sticky", left:0, zIndex:3, background:THEME.buttonBg, boxShadow:"2px 0 5px rgba(0,0,0,0.1)" }}>{dim==="player"?"Player":dim==="game"?"Game":"Play Code"}</th>
+                                {dim==="player" && <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>}
+                                {metricCols.map(m => <th key={m.id} style={{ ...thStyle }}>{m.name}{m.valueType==="both"?" (Count/Yds)":""}</th>)}
+                              </tr></thead>
+                              <tbody>
+                                {rows.map((row, ri) => (
+                                  <tr key={ri} style={{ borderBottom:"1px solid #f3f4f6", background:ri%2===0?"#fff":"#fafafa" }}>
+                                    <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, zIndex:1, background:ri%2===0?"#fff":"#fafafa", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{row.label}</td>
+                                    {dim==="player" && <td style={{ padding:"9px 10px" }}><Badge color="purple">{row.subtitle}</Badge></td>}
+                                    {metricCols.map(m => { const val = computeMetricVal(m, row.allPlays); const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`; return <td key={m.id} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#6366f1" }}>{display}</td>; })}
+                                  </tr>
+                                ))}
+                                {rows.length > 0 && (
+                                  <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
+                                    <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
+                                    {dim==="player" && <td></td>}
+                                    {metricCols.map(m => { const val = computeMetricVal(m, rows.flatMap(r=>r.allPlays)); const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`; return <td key={m.id} style={{ padding:"10px 10px", textAlign:"center", fontWeight:900, color:"#111827" }}>{display}</td>; })}
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                            </div>
+                          </CollapsibleSection>
+                        );
+                      }
+                      return null;
+                    });
                 })()}
               </>)}
             </>)}
@@ -2418,48 +2356,84 @@ const handleLogoDelete = async () => {
                   <StatCard label="Sacks / INTs"    value={`${sackTime+sackBlitz} / ${intOutcome}`} sub={`Time: ${sackTime} · Blitz: ${sackBlitz}`} accent="#059669" />
                 </div>
 
-                {/* Trend Chart — Defense */}
-                {defenseByGame.length >= 2 && (() => {
-                  const activeMetrics = DEFENSE_METRICS.filter(m => defenseTrendMetrics.includes(m.key));
-                  const toggleMetric = (key) => setDefenseTrendMetrics(prev =>
-                    prev.includes(key)
-                      ? (prev.length > 1 ? prev.filter(k => k !== key) : prev)
-                      : prev.length < 4 ? [...prev, key] : prev
-                  );
-                  return (
-                    <CollapsibleSection title="Trend Chart" subtitle="Game-over-game performance · select up to 4 metrics" defaultOpen={true}>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
-                        {DEFENSE_METRICS.map((m, mi) => {
-                          const active = defenseTrendMetrics.includes(m.key);
-                          const colorIdx = defenseTrendMetrics.indexOf(m.key);
-                          const chipColor = active ? CHART_COLORS[colorIdx % CHART_COLORS.length] : undefined;
-                          return (
-                            <button key={m.key} onClick={() => toggleMetric(m.key)} style={{
-                              padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:active?700:500,
-                              border:`1.5px solid ${active ? chipColor : "#d1d5db"}`,
-                              background: active ? chipColor : "#f8fafc",
-                              color: active ? "#fff" : "#6b7280",
-                              cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
-                            }}>
-                              {m.label}
-                            </button>
-                          );
-                        })}
-                        {defenseTrendMetrics.length >= 4 && (
-                          <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center", marginLeft:4 }}>Max 4 metrics</span>
-                        )}
-                      </div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:12, marginBottom:12 }}>
-                        {activeMetrics.map((m, mi) => (
-                          <div key={m.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color:"#374151" }}>
-                            <div style={{ width:20, height:3, borderRadius:2, background:CHART_COLORS[mi % CHART_COLORS.length] }} />
-                            {m.label}
-                          </div>
-                        ))}
-                      </div>
-                      <TrendChart gameData={defenseByGame} metrics={activeMetrics} />
-                    </CollapsibleSection>
-                  );
+                {/* Defense ordered items: trend chart + custom tables (driven by tableOrder) */}
+                {(() => {
+                  const allDefPlaysFilt2 = filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame);
+                  return tableOrder
+                    .filter(te => !te.page || te.page === "defense" || te.page === "both")
+                    .map(te => {
+                      if (te.type === "trend") {
+                        if (defenseByGame.length < 2) return null;
+                        const activeMetrics = DEFENSE_METRICS.filter(m => defenseTrendMetrics.includes(m.key));
+                        const toggleMetric = (key) => setDefenseTrendMetrics(prev =>
+                          prev.includes(key) ? (prev.length > 1 ? prev.filter(k => k !== key) : prev) : prev.length < 4 ? [...prev, key] : prev
+                        );
+                        return (
+                          <CollapsibleSection key="trendChart" title="Trend Chart" subtitle="Game-over-game performance · select up to 4 metrics" defaultOpen={true}>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                              {DEFENSE_METRICS.map(m => {
+                                const active = defenseTrendMetrics.includes(m.key);
+                                const colorIdx = defenseTrendMetrics.indexOf(m.key);
+                                const chipColor = active ? CHART_COLORS[colorIdx % CHART_COLORS.length] : undefined;
+                                return (<button key={m.key} onClick={() => toggleMetric(m.key)} style={{ padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:active?700:500, border:`1.5px solid ${active?chipColor:"#d1d5db"}`, background:active?chipColor:"#f8fafc", color:active?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>{m.label}</button>);
+                              })}
+                              {defenseTrendMetrics.length >= 4 && <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center", marginLeft:4 }}>Max 4 metrics</span>}
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:12, marginBottom:12 }}>
+                              {activeMetrics.map((m, mi) => (
+                                <div key={m.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color:"#374151" }}>
+                                  <div style={{ width:20, height:3, borderRadius:2, background:CHART_COLORS[mi % CHART_COLORS.length] }} />{m.label}
+                                </div>
+                              ))}
+                            </div>
+                            <TrendChart gameData={defenseByGame} metrics={activeMetrics} />
+                          </CollapsibleSection>
+                        );
+                      }
+                      if (te.type === "custom") {
+                        const layout = tableLayouts[te.key]; if (!layout) return null;
+                        const metricCols = (layout.metricColumns||[]).map(mid => allMetrics.find(m=>m.id===mid)).filter(Boolean);
+                        if (!metricCols.length) return (
+                          <CollapsibleSection key={te.key} title={layout.name||te.key} subtitle="No metrics configured — edit this table to add metrics.">
+                            <div style={{ color:"#9ca3af", fontSize:13 }}>Add custom metrics in Settings → Analytics Config → Table Layout.</div>
+                          </CollapsibleSection>
+                        );
+                        const dim = layout.dimension || "player";
+                        let rows = [];
+                        if (dim === "player") {
+                          const playerMap = {}; players.forEach(pl => { playerMap[pl.id] = { label:pl.name, position:pl.position, plays:[], defPlays:[] }; });
+                          allDefPlaysFilt2.forEach(p => { if(p.player&&playerMap[p.player]) playerMap[p.player].defPlays.push(p); });
+                          rows = Object.entries(playerMap).filter(([,v])=>v.plays.length||v.defPlays.length).map(([,v])=>({ label:v.label, subtitle:v.position, allPlays:[...v.plays,...v.defPlays] })).sort((a,b)=>a.label.localeCompare(b.label));
+                        } else if (dim === "game") {
+                          const gameMap = {}; games.forEach(g => { gameMap[g] = { label:g, allPlays:[] }; });
+                          allDefPlaysFilt2.forEach(p => { if(gameMap[p.game]) gameMap[p.game].allPlays.push(p); });
+                          rows = Object.values(gameMap).filter(v=>v.allPlays.length).sort((a,b)=>a.label.localeCompare(b.label));
+                        }
+                        return (
+                          <CollapsibleSection key={te.key} title={layout.name||te.key} subtitle={`${dim} view · ${metricCols.length} metric${metricCols.length!==1?"s":""}`}>
+                            <div style={{ overflowX:"auto" }}>
+                            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                              <thead><tr style={{ background:"#dc2626" }}>
+                                <th style={{ ...thStyle, textAlign:"left", position:"sticky", left:0, zIndex:3, background:"#dc2626", boxShadow:"2px 0 5px rgba(0,0,0,0.1)" }}>{dim==="player"?"Player":"Game"}</th>
+                                {dim==="player" && <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>}
+                                {metricCols.map(m => <th key={m.id} style={{ ...thStyle }}>{m.name}{m.valueType==="both"?" (Count/Yds)":""}</th>)}
+                              </tr></thead>
+                              <tbody>
+                                {rows.map((row, ri) => (
+                                  <tr key={ri} style={{ borderBottom:"1px solid #f3f4f6", background:ri%2===0?"#fff":"#fafafa" }}>
+                                    <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, zIndex:1, background:ri%2===0?"#fff":"#fafafa", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{row.label}</td>
+                                    {dim==="player" && <td style={{ padding:"9px 10px" }}><Badge color="purple">{row.subtitle}</Badge></td>}
+                                    {metricCols.map(m => { const val = computeMetricVal(m, row.allPlays); const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`; return <td key={m.id} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#6366f1" }}>{display}</td>; })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            </div>
+                          </CollapsibleSection>
+                        );
+                      }
+                      return null;
+                    });
                 })()}
 
                 <CollapsibleSection title="Pass vs Run Allowed">
@@ -2747,97 +2721,6 @@ const handleLogoDelete = async () => {
             })}
           </div>
         )}
-
-        {/* ───── CUSTOM TABLES (tableOrder-driven) ───── */}
-        {tab === "Analytics" && (() => {
-          const currentPage = analyticsSubTab.toLowerCase();
-          const customTables = tableOrder.filter(t => t.type === "custom" && (!t.page || t.page === currentPage || t.page === "both"));
-          if (!customTables.length) return null;
-          const allPlays    = filterGame === "All" ? plays    : plays.filter(p => p.game === filterGame);
-          const allDefPlays = filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame);
-
-          return (
-            <div style={{ display:"flex", flexDirection:"column", gap:20, marginTop:8 }}>
-              {customTables.map(tbl => {
-                const layout = tableLayouts[tbl.key];
-                if (!layout) return null;
-                const metricCols = (layout.metricColumns||[]).map(mid => allMetrics.find(m=>m.id===mid)).filter(Boolean);
-                if (!metricCols.length) return (
-                  <CollapsibleSection key={tbl.key} title={layout.name||tbl.key} subtitle="No metrics configured — edit this table to add metrics.">
-                    <div style={{ color:"#9ca3af", fontSize:13 }}>Add custom metrics in Settings → Analytics Config → Table Layout.</div>
-                  </CollapsibleSection>
-                );
-
-                const dim = layout.dimension || "player";
-
-                // Build rows based on dimension
-                let rows = [];
-                if (dim === "player") {
-                  const playerMap = {};
-                  players.forEach(pl => { playerMap[pl.id] = { label:pl.name, position:pl.position, plays:[], defPlays:[] }; });
-                  allPlays.forEach(p => {
-                    [p.thrower,p.receiver,p.carrier].filter(Boolean).forEach(pid => {
-                      if (playerMap[pid]) playerMap[pid].plays.push(p);
-                    });
-                  });
-                  allDefPlays.forEach(p => { if (p.player && playerMap[p.player]) playerMap[p.player].defPlays.push(p); });
-                  rows = Object.entries(playerMap).filter(([,v]) => v.plays.length||v.defPlays.length).map(([id,v]) => ({ id, label:v.label, subtitle:v.position, allPlays:[...v.plays,...v.defPlays] })).sort((a,b)=>a.label.localeCompare(b.label));
-                } else if (dim === "game") {
-                  const gameMap = {};
-                  games.forEach(g => { gameMap[g] = { label:g, allPlays:[] }; });
-                  [...allPlays, ...allDefPlays].forEach(p => { if(gameMap[p.game]) gameMap[p.game].allPlays.push(p); });
-                  rows = Object.values(gameMap).filter(v=>v.allPlays.length).sort((a,b)=>a.label.localeCompare(b.label));
-                } else if (dim === "playCode") {
-                  const codeMap = {};
-                  playCodes.forEach(pc => { codeMap[pc.code] = { label:pc.code, allPlays:[] }; });
-                  allPlays.filter(p=>p.playCode).forEach(p => { if(codeMap[p.playCode]) codeMap[p.playCode].allPlays.push(p); });
-                  rows = Object.values(codeMap).filter(v=>v.allPlays.length).sort((a,b)=>a.label.localeCompare(b.label));
-                }
-
-                return (
-                  <CollapsibleSection key={tbl.key} title={layout.name||tbl.key} subtitle={`${dim} view · ${metricCols.length} metric${metricCols.length!==1?"s":""}`}>
-                    <div style={{ overflowX:"auto" }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                        <thead><tr style={{ background:THEME.buttonBg }}>
-                          <th style={{ ...thStyle, textAlign:"left", position:"sticky", left:0, zIndex:3, background:THEME.buttonBg, boxShadow:"2px 0 5px rgba(0,0,0,0.1)" }}>{dim==="player"?"Player":dim==="game"?"Game":"Play Code"}</th>
-                          {dim==="player" && <th style={{ ...thStyle, textAlign:"left" }}>Pos</th>}
-                          {metricCols.map(m => (
-                            <th key={m.id} style={{ ...thStyle }}>{m.name}{m.valueType==="both"?" (Count/Yds)":""}</th>
-                          ))}
-                        </tr></thead>
-                        <tbody>
-                          {rows.map((row, ri) => (
-                            <tr key={ri} style={{ borderBottom:"1px solid #f3f4f6", background:ri%2===0?"#fff":"#fafafa" }}>
-                              <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, zIndex:1, background:ri%2===0?"#fff":"#fafafa", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{row.label}</td>
-                              {dim==="player" && <td style={{ padding:"9px 10px" }}><Badge color="purple">{row.subtitle}</Badge></td>}
-                              {metricCols.map(m => {
-                                const val = computeMetricVal(m, row.allPlays);
-                                const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`;
-                                return <td key={m.id} style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#6366f1" }}>{display}</td>;
-                              })}
-                            </tr>
-                          ))}
-                          {rows.length > 0 && (
-                            <tr style={{ borderTop:"2px solid #e5e7eb", background:"#f0f4f8" }}>
-                              <td style={{ padding:"10px 10px", fontWeight:900, color:"#111827", fontSize:11, position:"sticky", left:0, zIndex:1, background:"#f0f4f8", boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>TOTALS</td>
-                              {dim==="player" && <td></td>}
-                              {metricCols.map(m => {
-                                const allRowPlays = rows.flatMap(r => r.allPlays);
-                                const val = computeMetricVal(m, allRowPlays);
-                                const display = m.valueType==="count"?val.count:m.valueType==="yards"?`+${val.yards}`:`${val.count}/${val.yards}`;
-                                return <td key={m.id} style={{ padding:"10px 10px", textAlign:"center", fontWeight:900, color:"#111827" }}>{display}</td>;
-                              })}
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CollapsibleSection>
-                );
-              })}
-            </div>
-          );
-        })()}
 
         {/* ───── REPORT CARDS TAB ───── */}
         {tab === "Report Cards" && (
@@ -3527,8 +3410,9 @@ const handleLogoDelete = async () => {
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {tableOrder.map((tbl, ti) => {
                       const isBuiltin = tbl.type === "builtin";
-                      const label = isBuiltin
-                        ? { throwers:"Throwers", recrun:"Receivers & Runners", playcodes:"Play Codes", bygame:"Stats by Game" }[tbl.key] || tbl.key
+                      const isTrend  = tbl.type === "trend";
+                      const label = isTrend ? "Trend Chart"
+                        : isBuiltin ? ({ throwers:"Throwers", recrun:"Receivers & Runners", playcodes:"Play Codes", bygame:"Stats by Game" }[tbl.key] || tbl.key)
                         : (tableLayouts[tbl.key]?.name || tbl.key);
                       return (
                         <div key={tbl.key}
@@ -3548,8 +3432,9 @@ const handleLogoDelete = async () => {
                           <span style={{ fontSize:14, color:"#9ca3af" }}>⠿</span>
                           <div style={{ flex:1 }}>
                             <span style={{ fontSize:14, fontWeight:700, color:"#111827" }}>{label}</span>
-                            {!isBuiltin && <span style={{ fontSize:11, color:"#9ca3af", marginLeft:8 }}>Custom · {(tableLayouts[tbl.key]?.dimension)||"player"} view</span>}
+                            {!isBuiltin && !isTrend && <span style={{ fontSize:11, color:"#9ca3af", marginLeft:8 }}>Custom · {(tableLayouts[tbl.key]?.dimension)||"player"} view</span>}
                             {isBuiltin && <span style={{ fontSize:11, color:"#9ca3af", marginLeft:8 }}>Built-in</span>}
+                            {isTrend && <span style={{ fontSize:11, color:"#9ca3af", marginLeft:8 }}>Chart</span>}
                             <span style={{ fontSize:11, fontWeight:700, marginLeft:8, padding:"1px 7px", borderRadius:99,
                               background: tbl.page==="defense" ? "#fee2e2" : tbl.page==="both" ? "#f0fdf4" : "#e8eef7",
                               color: tbl.page==="defense" ? "#dc2626" : tbl.page==="both" ? "#059669" : THEME.primaryDark }}>
@@ -3558,21 +3443,24 @@ const handleLogoDelete = async () => {
                           </div>
                           <div style={{ display:"flex", gap:6 }}>
                             <button onClick={() => {
+                              if (isTrend) { setEditingTable({ key:"trendChart", type:"trend", page:tbl.page||"both", isNew:false }); return; }
                               const layout = tableLayouts[tbl.key] || (isBuiltin ? DEFAULT_TABLE_LAYOUTS[tbl.key] : {});
                               setEditingTable({ key:tbl.key, type:tbl.type, name:label, dimension:layout.dimension||"player", metricColumns:layout.metricColumns||[], columns:layout.columns||[], page:tbl.page||"offense", isNew:false });
                             }} style={{ padding:"5px 12px", background:"#e8eef7", color:THEME.primaryDark, border:"none", borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
-                            <button onClick={() => {
-                              const msg = isBuiltin
-                                ? `Delete the "${label}" table? This will remove it from Analytics.`
-                                : `Delete the custom table "${label}"?`;
-                              if (!window.confirm(msg)) return;
-                              saveTableOrder(tableOrder.filter((_,i) => i !== ti));
-                              if (!isBuiltin) {
-                                const newLayouts = { ...tableLayouts };
-                                delete newLayouts[tbl.key];
-                                saveTableLayouts(newLayouts);
-                              }
-                            }} style={{ padding:"5px 12px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
+                            {!isTrend && (
+                              <button onClick={() => {
+                                const msg = isBuiltin
+                                  ? `Delete the "${label}" table? This will remove it from Analytics.`
+                                  : `Delete the custom table "${label}"?`;
+                                if (!window.confirm(msg)) return;
+                                saveTableOrder(tableOrder.filter((_,i) => i !== ti));
+                                if (!isBuiltin) {
+                                  const newLayouts = { ...tableLayouts };
+                                  delete newLayouts[tbl.key];
+                                  saveTableLayouts(newLayouts);
+                                }
+                              }} style={{ padding:"5px 12px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
+                            )}
                           </div>
                         </div>
                       );
@@ -3602,7 +3490,7 @@ const handleLogoDelete = async () => {
                     onClick={e => { if(e.target===e.currentTarget) setEditingTable(null); }}>
                     <div style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:640, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.3)" }}>
                       <div style={{ background:THEME.primaryDark, padding:"20px 28px", borderRadius:"20px 20px 0 0", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                        <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{editingTable.isNew ? "New Table" : `Edit: ${editingTable.name}`}</div>
+                        <div style={{ fontSize:18, fontWeight:900, color:"#fff" }}>{editingTable.type === "trend" ? "Trend Chart Settings" : editingTable.isNew ? "New Table" : `Edit: ${editingTable.name}`}</div>
                         <button onClick={() => setEditingTable(null)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:18, fontFamily:"inherit" }}>×</button>
                       </div>
                       <div style={{ padding:28, display:"flex", flexDirection:"column", gap:20 }}>
@@ -3745,8 +3633,11 @@ const handleLogoDelete = async () => {
                         {/* Save button */}
                         <div style={{ display:"flex", gap:8, paddingTop:8, borderTop:"1.5px solid #e5e7eb" }}>
                           <button onClick={() => {
-                            const newPage = editingTable.page || "offense";
-                            if (editingTable.type === "custom") {
+                            const newPage = editingTable.page || (editingTable.type==="trend" ? "both" : "offense");
+                            if (editingTable.type === "trend") {
+                              // Trend chart: just update page in tableOrder
+                              saveTableOrder(tableOrder.map(t => t.key==="trendChart" ? { ...t, page:newPage } : t));
+                            } else if (editingTable.type === "custom") {
                               if (!editingTable.name?.trim()) { alert("Table name is required."); return; }
                               const newLayouts = { ...tableLayouts, [editingTable.key]:{ name:editingTable.name, dimension:editingTable.dimension||"player", metricColumns:editingTable.metricColumns||[], columns:[] } };
                               saveTableLayouts(newLayouts);
