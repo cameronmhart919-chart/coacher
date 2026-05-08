@@ -659,6 +659,150 @@ function LoginScreen() {
   );
 }
 
+// ── Trend Chart ──────────────────────────────────────────────────────────────
+const CHART_COLORS = ["#4a6fa5","#dc2626","#059669","#f59e0b","#8b5cf6","#ec4899"];
+
+const OFFENSE_METRICS = [
+  { key:"yards",        label:"Total Yards" },
+  { key:"yardsPerPlay", label:"Yds / Play" },
+  { key:"tds",          label:"Touchdowns" },
+  { key:"plays",        label:"Total Plays" },
+  { key:"passPlays",    label:"Pass Plays" },
+  { key:"runPlays",     label:"Run Plays" },
+  { key:"attempts",     label:"Attempts" },
+  { key:"completions",  label:"Completions" },
+  { key:"cmpPct",       label:"Comp %" },
+  { key:"successRate",  label:"Success Rate %" },
+  { key:"ints",         label:"INTs" },
+  { key:"sacks",        label:"Sacks" },
+];
+
+const DEFENSE_METRICS = [
+  { key:"yardsAllowed",        label:"Yards Allowed" },
+  { key:"yardsAllowedPerPlay", label:"Yds Allowed / Play" },
+  { key:"tdsAllowed",          label:"TDs Allowed" },
+  { key:"plays",               label:"Total Plays" },
+  { key:"passPlays",           label:"Pass Plays" },
+  { key:"runPlays",            label:"Run Plays" },
+  { key:"sacks",               label:"Sacks" },
+  { key:"ints",                label:"INTs" },
+  { key:"pbu",                 label:"PBUs" },
+  { key:"flagPulls",           label:"Flag Pulls" },
+];
+
+function TrendChart({ gameData, metrics }) {
+  const [tooltip, setTooltip] = useState(null);
+
+  const W = 640, H = 240;
+  const PAD = { l:52, r:24, t:20, b:56 };
+  const cW = W - PAD.l - PAD.r;
+  const cH = H - PAD.t - PAD.b;
+  const n = gameData.length;
+
+  if (!n || !metrics.length) return null;
+
+  const xOf = (i) => PAD.l + (n > 1 ? i / (n - 1) : 0.5) * cW;
+
+  const allVals = metrics.flatMap(m => gameData.map(d => d[m.key] ?? 0));
+  const rawMax = Math.max(...allVals, 0);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax || 1)));
+  const niceMax = (Math.ceil(rawMax / magnitude) * magnitude) || 5;
+  const yOf = (v) => PAD.t + cH - Math.min(1, v / niceMax) * cH;
+
+  const N_GRID = 4;
+  const gridStep = niceMax / N_GRID;
+
+  return (
+    <div style={{ position:"relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", overflow:"visible" }}>
+        {/* Vertical dashed lines per game */}
+        {gameData.map((_, i) => (
+          <line key={i} x1={xOf(i)} y1={PAD.t} x2={xOf(i)} y2={PAD.t+cH}
+            stroke="#f3f4f6" strokeWidth="1" strokeDasharray="4,3" />
+        ))}
+
+        {/* Horizontal gridlines + Y-axis labels */}
+        {Array.from({ length: N_GRID + 1 }, (_, i) => {
+          const val = i * gridStep;
+          const y = yOf(val);
+          const lbl = val % 1 === 0 ? String(Math.round(val)) : val.toFixed(1);
+          return (
+            <g key={i}>
+              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y}
+                stroke={i === 0 ? "#d1d5db" : "#f3f4f6"} strokeWidth={i === 0 ? 1.5 : 1} />
+              <text x={PAD.l - 6} y={y + 4} textAnchor="end" fill="#9ca3af" fontSize="11" fontFamily="system-ui">{lbl}</text>
+            </g>
+          );
+        })}
+
+        {/* X-axis game labels */}
+        {gameData.map((d, i) => {
+          const x = xOf(i);
+          const lbl = d.game.length > 12 ? d.game.slice(0, 11) + "…" : d.game;
+          return (
+            <text key={d.game} x={x} y={PAD.t + cH + 14} textAnchor="end"
+              fill="#6b7280" fontSize="10" fontFamily="system-ui"
+              transform={`rotate(-38,${x},${PAD.t + cH + 14})`}>
+              {lbl}
+            </text>
+          );
+        })}
+
+        {/* Lines */}
+        {metrics.map((m, mi) => {
+          const color = CHART_COLORS[mi % CHART_COLORS.length];
+          if (n < 2) return null;
+          const d = gameData.map((row, i) =>
+            `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(row[m.key] ?? 0).toFixed(1)}`
+          ).join(" ");
+          return <path key={m.key} d={d} fill="none" stroke={color} strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round" />;
+        })}
+
+        {/* Points */}
+        {metrics.map((m, mi) => {
+          const color = CHART_COLORS[mi % CHART_COLORS.length];
+          return gameData.map((row, i) => {
+            const x = xOf(i);
+            const y = yOf(row[m.key] ?? 0);
+            const isHov = tooltip?.metricKey === m.key && tooltip?.game === row.game;
+            return (
+              <circle key={`${m.key}-${i}`} cx={x} cy={y} r={isHov ? 6 : 4}
+                fill={color} stroke="#fff" strokeWidth="2"
+                style={{ cursor:"pointer" }}
+                onMouseEnter={() => setTooltip({ metricKey:m.key, game:row.game, val:row[m.key]??0, label:m.label, color, svgX:x, svgY:y })}
+                onMouseLeave={() => setTooltip(null)}
+              />
+            );
+          });
+        })}
+      </svg>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div style={{
+          position:"absolute",
+          left:`calc(${(tooltip.svgX / W * 100).toFixed(1)}% + 10px)`,
+          top:`calc(${(tooltip.svgY / H * 100).toFixed(1)}% - 44px)`,
+          background:"#1a2f5e", color:"#fff", borderRadius:8, padding:"6px 12px",
+          fontSize:12, pointerEvents:"none", whiteSpace:"nowrap",
+          boxShadow:"0 4px 14px rgba(0,0,0,0.25)", zIndex:10,
+        }}>
+          <div style={{ color:"#94a3b8", fontSize:11 }}>{tooltip.game}</div>
+          <div style={{ marginTop:2 }}>
+            <span style={{ color:tooltip.color, fontWeight:700 }}>{tooltip.label}:</span>
+            {" "}
+            <span style={{ fontWeight:800 }}>
+              {typeof tooltip.val === "number" && !Number.isInteger(tooltip.val)
+                ? tooltip.val.toFixed(1) : tooltip.val}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function FootballCoach() {
   // Show shared game view if ?share= param is present
@@ -714,6 +858,8 @@ export default function FootballCoach() {
   ]);
   const [draggingTable, setDraggingTable] = useState(null);
   const [editingTable,  setEditingTable]  = useState(null); // null | { key, type, name?, dimension?, metricColumns?, isNew? }
+  const [offenseTrendMetrics, setOffenseTrendMetrics] = useState(["yards"]);
+  const [defenseTrendMetrics, setDefenseTrendMetrics] = useState(["yardsAllowed"]);
   const [dataLoading,   setDataLoading]   = useState(true);
 
   // ── Subscribe to Firestore collections ──────────────────────────────────
@@ -1217,6 +1363,66 @@ const handleLogoDelete = async () => {
 
     return { total, successful, tds, totalYards, byType, byPlayer, totals, byCode, codeTotals };
   }, [filteredPlays, players, playCodes, tdOutcome]);
+
+  // Per-game offensive trend data (all games, preserves game order)
+  const offenseByGame = useMemo(() => {
+    const TD = tdOutcome;
+    return games.map(game => {
+      const gp = plays.filter(p => p.game === game);
+      if (!gp.length) return null;
+      const passP = gp.filter(p => p.playType === "Pass");
+      const runP  = gp.filter(p => p.playType !== "Pass");
+      const atts  = passP.filter(p => p.thrower).length;
+      const comps = passP.filter(p => {
+        const o = (p.outcome||"").trim();
+        return p.thrower && o !== "" &&
+          !["Incomplete","Drop","Interception","INT","Throw Away","Sack",
+            "XP Missed - 1pt","XP Missed - 2pt","XP Missed - 3pt"].includes(o);
+      }).length;
+      const tds   = gp.filter(p => (p.outcome||"").trim()===TD).length;
+      const yards = gp.reduce((a,b) => a+(b.yardsGained||0), 0);
+      const succ  = gp.filter(p => (p.outcome||"").trim()===TD || (p.yardsGained||0)>0).length;
+      return {
+        game,
+        plays:       gp.length,
+        yards,
+        yardsPerPlay: gp.length ? +(yards/gp.length).toFixed(1) : 0,
+        tds,
+        passPlays:   passP.length,
+        runPlays:    runP.length,
+        attempts:    atts,
+        completions: comps,
+        cmpPct:      atts ? Math.round(comps/atts*100) : 0,
+        successRate: gp.length ? Math.round(succ/gp.length*100) : 0,
+        ints:  gp.filter(p=>["Interception","INT"].includes((p.outcome||"").trim())).length,
+        sacks: gp.filter(p=>(p.outcome||"").trim()==="Sack").length,
+      };
+    }).filter(Boolean);
+  }, [plays, games, tdOutcome]);
+
+  // Per-game defensive trend data
+  const defenseByGame = useMemo(() => {
+    return games.map(game => {
+      const gp = defPlays.filter(p => p.game === game);
+      if (!gp.length) return null;
+      const passP = gp.filter(p => p.playType === "Pass");
+      const runP  = gp.filter(p => p.playType === "Run");
+      const ya    = gp.reduce((a,b) => a+(Number(b.yardsAllowed)||0), 0);
+      return {
+        game,
+        plays:               gp.length,
+        yardsAllowed:        ya,
+        yardsAllowedPerPlay: gp.length ? +(ya/gp.length).toFixed(1) : 0,
+        tdsAllowed:  gp.filter(p=>(p.outcome||"").trim()==="Touchdown Allowed").length,
+        passPlays:   passP.length,
+        runPlays:    runP.length,
+        sacks:       gp.filter(p=>["Sack - Time","Sack - Blitz"].includes((p.outcome||"").trim())).length,
+        ints:        gp.filter(p=>(p.outcome||"").trim()==="INT").length,
+        pbu:         gp.filter(p=>(p.playerAction||"").trim()==="PBU").length,
+        flagPulls:   gp.filter(p=>(p.playerAction||"").trim()==="Flag Pull").length,
+      };
+    }).filter(Boolean);
+  }, [defPlays, games]);
 
   // Compute metric column value for a set of plays
   const computeMetricVal = (metric, playsArr) => {
@@ -1766,6 +1972,52 @@ const handleLogoDelete = async () => {
                   <StatCard label="Total Yards"   value={`+${analytics.totalYards}`} accent={THEME.primary} />
                 </div>
 
+                {/* Trend Chart — Offense */}
+                {offenseByGame.length >= 2 && (() => {
+                  const activeMetrics = OFFENSE_METRICS.filter(m => offenseTrendMetrics.includes(m.key));
+                  const toggleMetric = (key) => setOffenseTrendMetrics(prev =>
+                    prev.includes(key)
+                      ? (prev.length > 1 ? prev.filter(k => k !== key) : prev)
+                      : prev.length < 4 ? [...prev, key] : prev
+                  );
+                  return (
+                    <CollapsibleSection title="Trend Chart" subtitle="Game-over-game performance · select up to 4 metrics" defaultOpen={true}>
+                      {/* Metric selector */}
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                        {OFFENSE_METRICS.map((m, mi) => {
+                          const active = offenseTrendMetrics.includes(m.key);
+                          const colorIdx = offenseTrendMetrics.indexOf(m.key);
+                          const chipColor = active ? CHART_COLORS[colorIdx % CHART_COLORS.length] : undefined;
+                          return (
+                            <button key={m.key} onClick={() => toggleMetric(m.key)} style={{
+                              padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:active?700:500,
+                              border:`1.5px solid ${active ? chipColor : "#d1d5db"}`,
+                              background: active ? chipColor : "#f8fafc",
+                              color: active ? "#fff" : "#6b7280",
+                              cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
+                            }}>
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                        {offenseTrendMetrics.length >= 4 && (
+                          <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center", marginLeft:4 }}>Max 4 metrics</span>
+                        )}
+                      </div>
+                      {/* Legend */}
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:12, marginBottom:12 }}>
+                        {activeMetrics.map((m, mi) => (
+                          <div key={m.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color:"#374151" }}>
+                            <div style={{ width:20, height:3, borderRadius:2, background:CHART_COLORS[mi % CHART_COLORS.length] }} />
+                            {m.label}
+                          </div>
+                        ))}
+                      </div>
+                      <TrendChart gameData={offenseByGame} metrics={activeMetrics} />
+                    </CollapsibleSection>
+                  );
+                })()}
+
                 {/* Play type breakdown */}
                 {Object.entries(analytics.byType).length > 0 && (
                   <CollapsibleSection title="Play Type Breakdown">
@@ -2165,6 +2417,51 @@ const handleLogoDelete = async () => {
                   <StatCard label="TDs Allowed"     value={tdAllowed}  accent="#dc2626" />
                   <StatCard label="Sacks / INTs"    value={`${sackTime+sackBlitz} / ${intOutcome}`} sub={`Time: ${sackTime} · Blitz: ${sackBlitz}`} accent="#059669" />
                 </div>
+
+                {/* Trend Chart — Defense */}
+                {defenseByGame.length >= 2 && (() => {
+                  const activeMetrics = DEFENSE_METRICS.filter(m => defenseTrendMetrics.includes(m.key));
+                  const toggleMetric = (key) => setDefenseTrendMetrics(prev =>
+                    prev.includes(key)
+                      ? (prev.length > 1 ? prev.filter(k => k !== key) : prev)
+                      : prev.length < 4 ? [...prev, key] : prev
+                  );
+                  return (
+                    <CollapsibleSection title="Trend Chart" subtitle="Game-over-game performance · select up to 4 metrics" defaultOpen={true}>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                        {DEFENSE_METRICS.map((m, mi) => {
+                          const active = defenseTrendMetrics.includes(m.key);
+                          const colorIdx = defenseTrendMetrics.indexOf(m.key);
+                          const chipColor = active ? CHART_COLORS[colorIdx % CHART_COLORS.length] : undefined;
+                          return (
+                            <button key={m.key} onClick={() => toggleMetric(m.key)} style={{
+                              padding:"5px 12px", borderRadius:99, fontSize:12, fontWeight:active?700:500,
+                              border:`1.5px solid ${active ? chipColor : "#d1d5db"}`,
+                              background: active ? chipColor : "#f8fafc",
+                              color: active ? "#fff" : "#6b7280",
+                              cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
+                            }}>
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                        {defenseTrendMetrics.length >= 4 && (
+                          <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center", marginLeft:4 }}>Max 4 metrics</span>
+                        )}
+                      </div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:12, marginBottom:12 }}>
+                        {activeMetrics.map((m, mi) => (
+                          <div key={m.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color:"#374151" }}>
+                            <div style={{ width:20, height:3, borderRadius:2, background:CHART_COLORS[mi % CHART_COLORS.length] }} />
+                            {m.label}
+                          </div>
+                        ))}
+                      </div>
+                      <TrendChart gameData={defenseByGame} metrics={activeMetrics} />
+                    </CollapsibleSection>
+                  );
+                })()}
+
                 <CollapsibleSection title="Pass vs Run Allowed">
                   {[["Pass",passPlaysD.length,passYdsD],["Run",runPlaysD.length,runYdsD]].map(([type,count,yards]) => {
                     const pct = totalPlays>0?Math.round(count/totalPlays*100):0;
