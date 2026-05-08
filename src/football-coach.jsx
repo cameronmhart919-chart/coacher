@@ -914,7 +914,20 @@ export default function FootballCoach() {
       }
     });
     listenDoc("config/tableOrder", snap => {
-      if (snap && snap.order && snap.order.length > 0) setTableOrder(snap.order);
+      if (snap && snap.order && snap.order.length > 0) {
+        const loaded = snap.order;
+        // Migration: ensure any entries present in the default but missing from the
+        // saved order (e.g. trendChart added after initial save) get appended.
+        const DEFAULT_KEYS = [
+          { key:"throwers",   type:"builtin", visible:true, page:"offense" },
+          { key:"recrun",     type:"builtin", visible:true, page:"offense" },
+          { key:"playcodes",  type:"builtin", visible:true, page:"offense" },
+          { key:"bygame",     type:"builtin", visible:true, page:"offense" },
+          { key:"trendChart", type:"trend",   visible:true, page:"both" },
+        ];
+        const missing = DEFAULT_KEYS.filter(d => !loaded.some(l => l.key === d.key));
+        setTableOrder(missing.length ? [...loaded, ...missing] : loaded);
+      }
     });
 
     // Listen to team users
