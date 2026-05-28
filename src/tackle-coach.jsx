@@ -46,6 +46,13 @@ const TK_BLOCKING_SCHEMES = [
 
 const TK_PLAY_TYPES = ["Run","Pass","Screen","Play Action","RPO","Option","QB Sneak","Kneel"];
 
+const TK_PLAY_CATEGORIES = [
+  { key:"Run",    label:"Run",    bg:"#dcfce7", color:"#14532d", border:"#86efac" },
+  { key:"Pass",   label:"Pass",   bg:"#dbeafe", color:"#1e40af", border:"#93c5fd" },
+  { key:"Screen", label:"Screen", bg:"#ede9fe", color:"#5b21b6", border:"#c4b5fd" },
+  { key:"RPO",    label:"RPO",    bg:"#fef3c7", color:"#92400e", border:"#fcd34d" },
+];
+
 const TK_DIRECTIONS = ["Left","Middle","Right"];
 
 const TK_OFF_OUTCOMES = [
@@ -302,6 +309,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [offenseTrendMetrics, setOffenseTrendMetrics] = useState(["yards"]);
   const [defenseTrendMetrics, setDefenseTrendMetrics] = useState(["yardsAllowed"]);
   const [newPlayCode,   setNewPlayCode]   = useState(""); // fixes useState-in-render bug
+  const [newPlayCodeCat, setNewPlayCodeCat] = useState("Run");
 
   // ── Firestore data ───────────────────────────────────────────────────────────
   const [plays,         setPlays]         = useState([]);
@@ -810,7 +818,16 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     <div><label style={lbl}>Play Code</label>
                       <select style={mInp} value={form.playCode} onChange={e => f("playCode", e.target.value)}>
                         <option value="">— None —</option>
-                        {playCodes.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
+                        {TK_PLAY_CATEGORIES.map(cat => {
+                          const group = playCodes.filter(pc => pc.category === cat.key);
+                          if (!group.length) return null;
+                          return (
+                            <optgroup key={cat.key} label={cat.label}>
+                              {group.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
+                            </optgroup>
+                          );
+                        })}
+                        {(() => { const uncategorized = playCodes.filter(pc => !pc.category); return uncategorized.length ? <optgroup label="Other">{uncategorized.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}</optgroup> : null; })()}
                       </select>
                     </div>
                   </div>
@@ -2084,21 +2101,55 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     placeholder="e.g. First Down, Fumble" />
                 </div>
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Play Codes</div>
-                  <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                    <input style={{ ...inp, flex:1 }} placeholder="e.g. 24 Power" value={newPlayCode} onChange={e => setNewPlayCode(e.target.value)}
-                      onKeyDown={e => { if(e.key==="Enter"&&newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim()}]);setNewPlayCode("");}}} />
-                    <button onClick={() => { if(newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim()}]);setNewPlayCode("");}}}
-                      style={{ padding:"9px 14px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Add</button>
+                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Play Codes</div>
+                  <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Assign each play call to a category so they group together in the logger.</div>
+
+                  {/* Add form */}
+                  <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                    <input style={{ ...inp, flex:2, minWidth:120 }} placeholder="e.g. 24 Power, Z-Post, Jet Sweep" value={newPlayCode} onChange={e => setNewPlayCode(e.target.value)}
+                      onKeyDown={e => { if(e.key==="Enter"&&newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim(),category:newPlayCodeCat}]);setNewPlayCode("");}}} />
+                    <select style={{ ...inp, flex:1, minWidth:90 }} value={newPlayCodeCat} onChange={e => setNewPlayCodeCat(e.target.value)}>
+                      {TK_PLAY_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                    </select>
+                    <button onClick={() => { if(newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim(),category:newPlayCodeCat}]);setNewPlayCode("");}}}
+                      style={{ padding:"9px 16px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13, whiteSpace:"nowrap" }}>Add</button>
                   </div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                    {playCodes.map(pc => (
-                      <div key={pc.id} style={{ background:"#dcfce7", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                        <span style={{ fontSize:13, fontWeight:700, color:TK.primaryDark }}>{pc.code}</span>
-                        <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:13, padding:0 }}>×</button>
+
+                  {/* Codes grouped by category */}
+                  {TK_PLAY_CATEGORIES.map(cat => {
+                    const group = playCodes.filter(pc => pc.category === cat.key);
+                    if (!group.length) return null;
+                    return (
+                      <div key={cat.key} style={{ marginBottom:16 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:cat.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{cat.label}</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                          {group.map(pc => (
+                            <div key={pc.id} style={{ background:cat.bg, border:`1.5px solid ${cat.border}`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                              <span style={{ fontSize:13, fontWeight:700, color:cat.color }}>{pc.code}</span>
+                              <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
+                  {/* Legacy / uncategorized codes */}
+                  {playCodes.filter(pc => !pc.category).length > 0 && (
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Uncategorized</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                        {playCodes.filter(pc => !pc.category).map(pc => (
+                          <div key={pc.id} style={{ background:"#f3f4f6", border:"1.5px solid #e5e7eb", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#374151" }}>{pc.code}</span>
+                            <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {playCodes.length === 0 && (
+                    <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No play codes yet. Add one above.</div>
+                  )}
                 </div>
               </>
             )}
