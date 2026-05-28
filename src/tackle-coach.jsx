@@ -185,6 +185,97 @@ function TkStringList({ items, onAdd, onEdit, onDelete, placeholder }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Trend chart metrics ───────────────────────────────────────────────────────
+const TK_CHART_COLORS = ["#15803d","#dc2626","#d97706","#7c3aed","#0284c7","#ec4899"];
+
+const TK_OFF_METRICS = [
+  { key:"yards",        label:"Total Yards" },
+  { key:"yardsPerPlay", label:"Yds / Play" },
+  { key:"tds",          label:"Touchdowns" },
+  { key:"plays",        label:"Total Plays" },
+  { key:"passPlays",    label:"Pass Plays" },
+  { key:"runPlays",     label:"Run Plays" },
+  { key:"firstDowns",   label:"First Downs" },
+  { key:"successRate",  label:"Success Rate %" },
+];
+
+const TK_DEF_METRICS = [
+  { key:"yardsAllowed",        label:"Yards Allowed" },
+  { key:"yardsAllowedPerPlay", label:"Yds Allowed / Play" },
+  { key:"tdsAllowed",          label:"TDs Allowed" },
+  { key:"sacks",               label:"Sacks" },
+  { key:"tfls",                label:"TFLs" },
+  { key:"ints",                label:"INTs" },
+  { key:"plays",               label:"Total Plays" },
+];
+
+// ── TkTrendChart ──────────────────────────────────────────────────────────────
+function TkTrendChart({ gameData, metrics }) {
+  const [tooltip, setTooltip] = useState(null);
+  const W = 640, H = 240;
+  const PAD = { l:52, r:24, t:20, b:56 };
+  const cW = W - PAD.l - PAD.r;
+  const cH = H - PAD.t - PAD.b;
+  const n = gameData.length;
+  if (!n || !metrics.length) return null;
+  const xOf = (i) => PAD.l + (n > 1 ? i / (n - 1) : 0.5) * cW;
+  const allVals = metrics.flatMap(m => gameData.map(d => d[m.key] ?? 0));
+  const rawMax = Math.max(...allVals, 0);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax || 1)));
+  const niceMax = (Math.ceil(rawMax / magnitude) * magnitude) || 5;
+  const yOf = (v) => PAD.t + cH - Math.min(1, v / niceMax) * cH;
+  const N_GRID = 4;
+  const gridStep = niceMax / N_GRID;
+  return (
+    <div style={{ position:"relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", overflow:"visible" }}>
+        {gameData.map((_, i) => (
+          <line key={i} x1={xOf(i)} y1={PAD.t} x2={xOf(i)} y2={PAD.t+cH} stroke="#f3f4f6" strokeWidth="1" strokeDasharray="4,3" />
+        ))}
+        {Array.from({ length: N_GRID + 1 }, (_, i) => {
+          const val = i * gridStep; const y = yOf(val);
+          const lbl = val % 1 === 0 ? String(Math.round(val)) : val.toFixed(1);
+          return (
+            <g key={i}>
+              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke={i===0?"#d1d5db":"#f3f4f6"} strokeWidth={i===0?1.5:1} />
+              <text x={PAD.l - 6} y={y + 4} textAnchor="end" fill="#9ca3af" fontSize="11" fontFamily="system-ui">{lbl}</text>
+            </g>
+          );
+        })}
+        {gameData.map((d, i) => {
+          const x = xOf(i); const lbl = d.game.length > 12 ? d.game.slice(0,11)+"…" : d.game;
+          return <text key={d.game} x={x} y={PAD.t+cH+14} textAnchor="end" fill="#6b7280" fontSize="10" fontFamily="system-ui" transform={`rotate(-38,${x},${PAD.t+cH+14})`}>{lbl}</text>;
+        })}
+        {metrics.map((m, mi) => {
+          const color = TK_CHART_COLORS[mi % TK_CHART_COLORS.length];
+          if (n < 2) return null;
+          const d = gameData.map((row, i) => `${i===0?"M":"L"}${xOf(i).toFixed(1)},${yOf(row[m.key]??0).toFixed(1)}`).join(" ");
+          return <path key={m.key} d={d} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />;
+        })}
+        {metrics.map((m, mi) => {
+          const color = TK_CHART_COLORS[mi % TK_CHART_COLORS.length];
+          return gameData.map((row, i) => {
+            const x = xOf(i); const y = yOf(row[m.key]??0);
+            const isHov = tooltip?.metricKey===m.key && tooltip?.game===row.game;
+            return (
+              <circle key={`${m.key}-${i}`} cx={x} cy={y} r={isHov?6:4} fill={color} stroke="#fff" strokeWidth="2"
+                style={{ cursor:"pointer" }}
+                onMouseEnter={() => setTooltip({ metricKey:m.key, game:row.game, val:row[m.key]??0, label:m.label, color, svgX:x, svgY:y })}
+                onMouseLeave={() => setTooltip(null)} />
+            );
+          });
+        })}
+      </svg>
+      {tooltip && (
+        <div style={{ position:"absolute", left:`calc(${(tooltip.svgX/W*100).toFixed(1)}% + 10px)`, top:`calc(${(tooltip.svgY/H*100).toFixed(1)}% - 44px)`, background:"#14532d", color:"#fff", borderRadius:8, padding:"6px 12px", fontSize:12, pointerEvents:"none", whiteSpace:"nowrap", boxShadow:"0 4px 14px rgba(0,0,0,0.25)", zIndex:10 }}>
+          <div style={{ color:"#86efac", fontSize:11 }}>{tooltip.game}</div>
+          <div style={{ marginTop:2 }}><span style={{ color:tooltip.color, fontWeight:700 }}>{tooltip.label}:</span> <span style={{ fontWeight:800 }}>{typeof tooltip.val==="number"&&!Number.isInteger(tooltip.val)?tooltip.val.toFixed(1):tooltip.val}</span></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── TACKLE COACH MAIN COMPONENT ───────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function TackleCoach({ instanceId, authUser, userProfile, onSwitchPortal }) {
@@ -202,10 +293,15 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   }, []);
 
   // ── UI state ─────────────────────────────────────────────────────────────────
-  const [tab,        setTab]        = useState("Log a Play +");
-  const [logSubTab,  setLogSubTab]  = useState("Offense");
-  const [settingsTab, setSettingsTab] = useState("general");
-  const [filterGame, setFilterGame] = useState("All");
+  const [tab,           setTab]           = useState("Log a Play +");
+  const [logSubTab,     setLogSubTab]     = useState("Offense");
+  const [analyticsSubTab, setAnalyticsSubTab] = useState("Offense");
+  const [settingsTab,   setSettingsTab]   = useState("general");
+  const [filterGame,    setFilterGame]    = useState("All");
+  const [selectedPlayer, setSelectedPlayer] = useState(null); // for report card detail
+  const [offenseTrendMetrics, setOffenseTrendMetrics] = useState(["yards"]);
+  const [defenseTrendMetrics, setDefenseTrendMetrics] = useState(["yardsAllowed"]);
+  const [newPlayCode,   setNewPlayCode]   = useState(""); // fixes useState-in-render bug
 
   // ── Firestore data ───────────────────────────────────────────────────────────
   const [plays,         setPlays]         = useState([]);
@@ -224,6 +320,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [tags,          setTags]          = useState(TK_DEFAULT_TAGS);
   const [playCodes,     setPlayCodes]     = useState([]);
   const [gameScores,    setGameScores]    = useState({});
+  const [playerNotes,   setPlayerNotes]   = useState({}); // { [playerId]: string }
 
   // ── Firestore subscriptions ──────────────────────────────────────────────────
   useEffect(() => {
@@ -258,6 +355,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     listenDoc("tackle_config/tags",           snap => setTags(snap.tags || TK_DEFAULT_TAGS));
     listenDoc("tackle_config/playCodes",      snap => setPlayCodes(snap.codes || []));
     listenDoc("tackle_config/gameScores",     snap => setGameScores(snap || {}));
+    listenDoc("tackle_config/playerNotes",    snap => setPlayerNotes(snap.notes || {}));
     return () => unsubs.forEach(u => u());
   }, [instanceId]);
 
@@ -275,6 +373,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const saveStOutcomes  = (v) => saveDoc("tackle_config/stOutcomes",   { outcomes:v });
   const saveTags        = (v) => saveDoc("tackle_config/tags",         { tags:v });
   const savePlayCodes   = (v) => saveDoc("tackle_config/playCodes",    { codes:v });
+  const saveGameScore   = (game, score) => saveDoc("tackle_config/gameScores", { [game]:score }, { merge:true });
+  const savePlayerNote  = (pid, note) => saveDoc("tackle_config/playerNotes", { notes:{ ...playerNotes, [pid]:note } });
 
   // ── Offensive form ───────────────────────────────────────────────────────────
   const initOffForm = () => ({
@@ -358,7 +458,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const deleteStPlay = (id) => deleteDoc(doc(db, base, "tackle_stPlays", id));
 
   // ── Player management ─────────────────────────────────────────────────────────
-  const [newPlayer, setNewPlayer] = useState({ name:"", number:"", position:"" });
+  const [newPlayer, setNewPlayer] = useState({ name:"", number:"", positions:[] });
   const [editingPlayer, setEditingPlayer] = useState(null);
 
   // ── Analytics ────────────────────────────────────────────────────────────────
@@ -368,6 +468,136 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const filteredDefPlays = useMemo(() =>
     filterGame === "All" ? defPlays : defPlays.filter(p => p.game === filterGame),
   [defPlays, filterGame]);
+  const filteredStPlays = useMemo(() =>
+    filterGame === "All" ? stPlays : stPlays.filter(p => p.game === filterGame),
+  [stPlays, filterGame]);
+
+  // ── Helper: get all positions for a player (supports legacy single string) ──
+  const getPositions = (pl) => pl.positions?.length ? pl.positions : (pl.position ? [pl.position] : []);
+
+  // ── Per-game trend data ───────────────────────────────────────────────────────
+  const offByGame = useMemo(() => {
+    return games.map(game => {
+      const gp = plays.filter(p => p.game === game);
+      if (!gp.length) return null;
+      const yards = gp.reduce((a,b) => a+(Number(b.yardsGained)||0), 0);
+      const passP = gp.filter(p => ["Pass","Play Action","RPO","Screen"].includes(p.playType));
+      const runP  = gp.filter(p => ["Run","Option","QB Sneak","Kneel"].includes(p.playType));
+      return {
+        game,
+        plays:        gp.length,
+        yards,
+        yardsPerPlay: gp.length ? +(yards/gp.length).toFixed(1) : 0,
+        tds:          gp.filter(p => p.outcome==="TD").length,
+        passPlays:    passP.length,
+        runPlays:     runP.length,
+        firstDowns:   gp.filter(p => p.outcome==="First Down"||p.outcome==="TD").length,
+        successRate:  gp.length ? Math.round(gp.filter(p => p.outcome==="TD"||p.outcome==="First Down"||(Number(p.yardsGained)||0)>0).length/gp.length*100) : 0,
+      };
+    }).filter(Boolean);
+  }, [plays, games]);
+
+  const defByGame = useMemo(() => {
+    return games.map(game => {
+      const gp = defPlays.filter(p => p.game === game);
+      if (!gp.length) return null;
+      const ya = gp.reduce((a,b) => a+(Number(b.yardsAllowed)||0), 0);
+      return {
+        game,
+        plays:               gp.length,
+        yardsAllowed:        ya,
+        yardsAllowedPerPlay: gp.length ? +(ya/gp.length).toFixed(1) : 0,
+        tdsAllowed:          gp.filter(p => p.outcome?.includes("TD Allowed")).length,
+        sacks:               gp.filter(p => p.outcome?.includes("Sack")).length,
+        tfls:                gp.filter(p => p.outcome?.includes("TFL")).length,
+        ints:                gp.filter(p => p.outcome?.includes("INT")).length,
+      };
+    }).filter(Boolean);
+  }, [defPlays, games]);
+
+  // ── Per-player analytics memos ────────────────────────────────────────────────
+  const byPlayerOff = useMemo(() => {
+    const map = {};
+    players.forEach(pl => {
+      map[pl.id] = { id:pl.id, name:pl.name, positions:getPositions(pl), carries:0, rushYards:0, rushTDs:0, targets:0, receptions:0, recYards:0, recTDs:0 };
+    });
+    filteredOffPlays.forEach(p => {
+      if (p.carrier && map[p.carrier]) {
+        const s = map[p.carrier];
+        s.carries++;
+        s.rushYards += Number(p.yardsGained)||0;
+        if (p.outcome==="TD") s.rushTDs++;
+      }
+      if (p.receiver && map[p.receiver]) {
+        const s = map[p.receiver];
+        s.targets++;
+        if (!["Incomplete","Drop"].includes(p.outcome) && p.outcome) {
+          s.receptions++;
+          s.recYards += Number(p.yardsGained)||0;
+        }
+        if (p.outcome==="TD") s.recTDs++;
+      }
+    });
+    return Object.values(map)
+      .filter(p => p.carries>0 || p.targets>0)
+      .sort((a,b) => (b.carries+b.targets)-(a.carries+a.targets));
+  }, [filteredOffPlays, players]);
+
+  const byPlayerDef = useMemo(() => {
+    const map = {};
+    players.forEach(pl => {
+      map[pl.id] = { id:pl.id, name:pl.name, positions:getPositions(pl), tackles:0, assists:0, tfls:0, sacks:0, ints:0, forcedFumbles:0, pbu:0 };
+    });
+    filteredDefPlays.forEach(p => {
+      if (p.primaryTackler && map[p.primaryTackler]) {
+        const s = map[p.primaryTackler];
+        s.tackles++;
+        if (p.outcome?.includes("TFL"))           s.tfls++;
+        if (p.outcome?.includes("Sack"))          s.sacks++;
+        if (p.outcome?.includes("INT"))           s.ints++;
+        if (p.outcome?.includes("Forced Fumble")) s.forcedFumbles++;
+        if (p.playerAction?.includes("PBU"))      s.pbu++;
+      }
+      if (p.secondaryTackler && p.secondaryTackler !== p.primaryTackler && map[p.secondaryTackler]) {
+        map[p.secondaryTackler].assists++;
+      }
+    });
+    return Object.values(map)
+      .filter(p => p.tackles>0 || p.assists>0 || p.ints>0)
+      .sort((a,b) => (b.tackles+b.assists)-(a.tackles+a.assists));
+  }, [filteredDefPlays, players]);
+
+  const byFormation = useMemo(() => {
+    const map = {};
+    filteredOffPlays.forEach(p => {
+      const f = p.formation || "Unknown";
+      if (!map[f]) map[f] = { formation:f, plays:0, yards:0, tds:0, firstDowns:0, pass:0, run:0 };
+      const s = map[f];
+      s.plays++;
+      s.yards += Number(p.yardsGained)||0;
+      if (p.outcome==="TD") s.tds++;
+      if (p.outcome==="First Down"||p.outcome==="TD") s.firstDowns++;
+      if (["Pass","Play Action","RPO","Screen"].includes(p.playType)) s.pass++;
+      else s.run++;
+    });
+    return Object.values(map).sort((a,b) => b.plays-a.plays);
+  }, [filteredOffPlays]);
+
+  const byDown = useMemo(() => {
+    const map = { "1":{down:"1st",plays:0,yards:0,success:0}, "2":{down:"2nd",plays:0,yards:0,success:0}, "3":{down:"3rd",plays:0,yards:0,success:0}, "4":{down:"4th",plays:0,yards:0,success:0} };
+    filteredOffPlays.forEach(p => {
+      const d = p.down;
+      if (!map[d]) return;
+      map[d].plays++;
+      map[d].yards += Number(p.yardsGained)||0;
+      if (p.outcome==="TD"||p.outcome==="First Down"||(Number(p.yardsGained)||0)>0) map[d].success++;
+    });
+    return Object.values(map).map(s => ({
+      ...s,
+      yardsPerPlay:  s.plays>0 ? +(s.yards/s.plays).toFixed(1) : 0,
+      successRate:   s.plays>0 ? Math.round(s.success/s.plays*100) : 0,
+    }));
+  }, [filteredOffPlays]);
 
   // ── Styles ───────────────────────────────────────────────────────────────────
   const inp = { width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", background:"#fff", color:"#111827", boxSizing:"border-box", outline:"none" };
@@ -396,7 +626,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   // ─────────────────────────────────────────────────────────────────────────────
   // ── RENDER ───────────────────────────────────────────────────────────────────
   // ─────────────────────────────────────────────────────────────────────────────
-  const TABS = ["Log a Play +","Play History","Analytics","Settings"];
+  const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Settings"];
 
   return (
     <div style={{ minHeight:"100vh", background:"#f4f6fa", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
@@ -448,7 +678,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                 style={{ position:"absolute", bottom:64, left:0, right:0, background:"#fff", borderRadius:"20px 20px 0 0", padding:"12px 0 8px", boxShadow:"0 -4px 24px rgba(0,0,0,0.15)" }}>
                 <div style={{ width:40, height:4, borderRadius:2, background:"#d1d5db", margin:"0 auto 16px" }} />
                 {[
-                  { icon:"⚙️", label:"Settings", tab:"Settings" },
+                  { icon:"📜", label:"Play History", tab:"Play History" },
+                  { icon:"⚙️", label:"Settings",    tab:"Settings" },
                 ].map(item => (
                   <button key={item.tab} onClick={() => { setTab(item.tab); setMobileMoreOpen(false); }}
                     style={{ width:"100%", padding:"16px 24px", background:"none", border:"none", textAlign:"left", fontSize:16, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:14 }}>
@@ -470,8 +701,9 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
           <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:100, background:"#fff", borderTop:"1.5px solid #e5e7eb", display:"flex", boxShadow:"0 -2px 12px rgba(0,0,0,0.08)" }}>
             {[
               { icon:"📋", label:"Log",     tab:"Log a Play +" },
-              { icon:"📜", label:"History", tab:"Play History" },
               { icon:"📊", label:"Stats",   tab:"Analytics" },
+              { icon:"🏈", label:"Games",   tab:"Game Summary" },
+              { icon:"📝", label:"Cards",   tab:"Report Cards" },
               { icon:"⋯",  label:"More",    tab:null },
             ].map(item => {
               const isActive = item.tab ? tab === item.tab : tab === "Settings";
@@ -1075,8 +1307,17 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {tab === "Analytics" && (
           <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-            {/* Game filter */}
-            <div style={{ display:"flex", justifyContent:"flex-end" }}>
+            {/* Sub-tabs + game filter */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+              <div style={{ display:"flex", gap:6 }}>
+                {["Offense","Defense","Special Teams"].map(st => (
+                  <button key={st} onClick={() => setAnalyticsSubTab(st)} style={{
+                    padding:"8px 16px", borderRadius:8, border:"none", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit",
+                    background: analyticsSubTab===st ? (st==="Defense"?TK.red:st==="Special Teams"?"#7c3aed":TK.buttonBg) : "#e5e7eb",
+                    color: analyticsSubTab===st?"#fff":"#374151",
+                  }}>{isMobile&&st==="Special Teams"?"ST":st}</button>
+                ))}
+              </div>
               <select value={filterGame} onChange={e => setFilterGame(e.target.value)}
                 style={{ padding:"8px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:13, fontFamily:"inherit" }}>
                 <option value="All">All Games</option>
@@ -1084,105 +1325,591 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
               </select>
             </div>
 
-            {/* Offensive stat cards */}
-            {filteredOffPlays.length > 0 && (
-              <>
-                <div style={{ fontSize:14, fontWeight:800, color:TK.primaryDark, textTransform:"uppercase", letterSpacing:1 }}>Offense</div>
+            {/* ── OFFENSE ANALYTICS ──────────────────────────────────────── */}
+            {analyticsSubTab === "Offense" && (<>
+              {filteredOffPlays.length === 0 ? (
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af", fontSize:15 }}>No offensive plays logged yet.</div>
+              ) : (<>
+                {/* Stat cards */}
                 <div style={{ display:"grid", gridTemplateColumns:cols4, gap:14 }}>
                   <TkStatCard label="Total Plays" value={filteredOffPlays.length} accent={TK.primary} />
-                  <TkStatCard label="Total Yards"
-                    value={`+${filteredOffPlays.reduce((a,b) => a+(Number(b.yardsGained)||0), 0)}`}
-                    sub={`${(filteredOffPlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0)/filteredOffPlays.length).toFixed(1)} yds/play`}
-                    accent={TK.primary} />
+                  <TkStatCard label="Total Yards" value={`+${filteredOffPlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0)}`} sub={`${(filteredOffPlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0)/filteredOffPlays.length).toFixed(1)} yds/play`} accent={TK.primary} />
                   <TkStatCard label="Touchdowns" value={filteredOffPlays.filter(p=>p.outcome==="TD").length} accent={TK.primary} />
-                  <TkStatCard label="Success Rate"
-                    value={`${Math.round(filteredOffPlays.filter(p=>p.outcome==="TD"||p.outcome==="First Down"||(Number(p.yardsGained)||0)>0).length/filteredOffPlays.length*100)}%`}
-                    accent={TK.primary} />
+                  <TkStatCard label="Success Rate" value={`${Math.round(filteredOffPlays.filter(p=>p.outcome==="TD"||p.outcome==="First Down"||(Number(p.yardsGained)||0)>0).length/filteredOffPlays.length*100)}%`} accent={TK.primary} />
                 </div>
-                {/* Pass vs Run breakdown */}
-                <TkCollapsible title="Pass vs Run Breakdown" defaultOpen>
-                  {["Pass","Run"].map(type => {
-                    const typePlays = filteredOffPlays.filter(p => {
-                      const pt = (p.playType||"").toLowerCase();
-                      return type==="Run"
-                        ? pt==="run" || pt==="option" || pt==="qb sneak" || pt==="kneel"
-                        : pt==="pass" || pt==="play action" || pt==="rpo" || pt==="screen";
-                    });
-                    const pct = filteredOffPlays.length>0 ? Math.round(typePlays.length/filteredOffPlays.length*100) : 0;
-                    const yds = typePlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0);
-                    return (
-                      <div key={type} style={{ marginBottom:14 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:4 }}>
-                          <span style={{ fontWeight:700 }}>{type}</span>
-                          <span style={{ color:"#6b7280" }}>{typePlays.length} plays · {typePlays.length>0?(yds/typePlays.length).toFixed(1):0} yds/play · {pct}%</span>
-                        </div>
-                        <div style={{ height:8, background:"#f3f4f6", borderRadius:99 }}>
-                          <div style={{ height:"100%", width:`${pct}%`, background:TK.primary, borderRadius:99 }} />
-                        </div>
+
+                {/* Trend chart */}
+                {offByGame.length >= 2 && (() => {
+                  const active = TK_OFF_METRICS.filter(m => offenseTrendMetrics.includes(m.key));
+                  return (
+                    <TkCollapsible title="Trend Chart" subtitle="Game-over-game · select up to 4 metrics" defaultOpen>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+                        {TK_OFF_METRICS.map(m => {
+                          const on = offenseTrendMetrics.includes(m.key);
+                          const ci = offenseTrendMetrics.indexOf(m.key);
+                          const cc = on ? TK_CHART_COLORS[ci % TK_CHART_COLORS.length] : undefined;
+                          return <button key={m.key} onClick={() => setOffenseTrendMetrics(prev => prev.includes(m.key)?(prev.length>1?prev.filter(k=>k!==m.key):prev):prev.length<4?[...prev,m.key]:prev)} style={{ padding:"4px 12px", borderRadius:99, fontSize:12, fontWeight:on?700:500, border:`1.5px solid ${on?cc:"#d1d5db"}`, background:on?cc:"#f8fafc", color:on?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>{m.label}</button>;
+                        })}
+                        {offenseTrendMetrics.length>=4 && <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center" }}>Max 4</span>}
                       </div>
-                    );
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:10 }}>
+                        {active.map((m,mi) => <div key={m.key} style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, fontWeight:600, color:"#374151" }}><div style={{ width:18, height:3, borderRadius:2, background:TK_CHART_COLORS[mi%TK_CHART_COLORS.length] }}/>{m.label}</div>)}
+                      </div>
+                      <TkTrendChart gameData={offByGame} metrics={active} />
+                    </TkCollapsible>
+                  );
+                })()}
+
+                {/* Pass vs Run */}
+                <TkCollapsible title="Pass vs Run" defaultOpen>
+                  {["Pass","Run"].map(type => {
+                    const tp = filteredOffPlays.filter(p => { const pt=(p.playType||"").toLowerCase(); return type==="Run"?(pt==="run"||pt==="option"||pt==="qb sneak"||pt==="kneel"):(pt==="pass"||pt==="play action"||pt==="rpo"||pt==="screen"); });
+                    const pct = filteredOffPlays.length>0?Math.round(tp.length/filteredOffPlays.length*100):0;
+                    const yds = tp.reduce((a,b)=>a+(Number(b.yardsGained)||0),0);
+                    return <div key={type} style={{ marginBottom:12 }}><div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:3 }}><span style={{ fontWeight:700 }}>{type}</span><span style={{ color:"#6b7280" }}>{tp.length} plays · {tp.length>0?(yds/tp.length).toFixed(1):0} yds/play · {pct}%</span></div><div style={{ height:8, background:"#f3f4f6", borderRadius:99 }}><div style={{ height:"100%", width:`${pct}%`, background:TK.primary, borderRadius:99 }}/></div></div>;
                   })}
                 </TkCollapsible>
-                {/* Formation breakdown */}
-                {filteredOffPlays.some(p=>p.formation) && (
-                  <TkCollapsible title="Formation Usage">
-                    {Object.entries(filteredOffPlays.reduce((acc,p) => {
-                      if (p.formation) acc[p.formation]=(acc[p.formation]||0)+1;
-                      return acc;
-                    }, {})).sort((a,b)=>b[1]-a[1]).map(([form, count]) => {
-                      const pct = Math.round(count/filteredOffPlays.length*100);
-                      return (
-                        <div key={form} style={{ marginBottom:10 }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:3 }}>
-                            <span style={{ fontWeight:700 }}>{form}</span>
-                            <span style={{ color:"#6b7280" }}>{count} plays · {pct}%</span>
-                          </div>
-                          <div style={{ height:6, background:"#f3f4f6", borderRadius:99 }}>
-                            <div style={{ height:"100%", width:`${pct}%`, background:TK.accent, borderRadius:99 }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+
+                {/* Per-player offense table */}
+                {byPlayerOff.length > 0 && (
+                  <TkCollapsible title="Player Stats — Offense" defaultOpen>
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:700 }}>
+                        <thead><tr style={{ background:TK.buttonBg }}>
+                          {["Player","Pos","Car","Rush Yds","Yds/Car","Rush TD","Tgt","Rec","Rec Yds","Rec TD"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", whiteSpace:"nowrap", textAlign:i<2?"left":"center", position:i===0?"sticky":undefined, left:i===0?0:undefined, zIndex:i===0?3:undefined, background:i===0?TK.buttonBg:undefined, boxShadow:i===0?"2px 0 5px rgba(0,0,0,0.1)":undefined }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byPlayerOff.map((p,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={p.id} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, zIndex:1, background:bg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)", whiteSpace:"nowrap" }}>{p.name}</td>
+                                <td style={{ padding:"9px 10px" }}>{p.positions.map(pos => <TkBadge key={pos} color="green">{pos}</TkBadge>)}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.carries||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:TK.primary }}>{p.rushYards>0?`+${p.rushYards}`:p.rushYards||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.carries>0?(p.rushYards/p.carries).toFixed(1):"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.rushTDs>0?<TkBadge color="green">{p.rushTDs}</TkBadge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.targets||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.receptions||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:TK.primary }}>{p.recYards>0?`+${p.recYards}`:p.recYards||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.recTDs>0?<TkBadge color="green">{p.recTDs}</TkBadge>:"—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </TkCollapsible>
                 )}
-              </>
-            )}
 
-            {/* Defensive stat cards */}
-            {filteredDefPlays.length > 0 && (
-              <>
-                <div style={{ fontSize:14, fontWeight:800, color:"#991b1b", textTransform:"uppercase", letterSpacing:1, marginTop:8 }}>Defense</div>
+                {/* Per-formation table */}
+                {byFormation.length > 0 && (
+                  <TkCollapsible title="Formation Breakdown">
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead><tr style={{ background:TK.buttonBg }}>
+                          {["Formation","Plays","Yds/Play","TDs","1st Downs","Pass%","Run%"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", textAlign:i===0?"left":"center", position:i===0?"sticky":undefined, left:i===0?0:undefined, zIndex:i===0?3:undefined, background:i===0?TK.buttonBg:undefined, boxShadow:i===0?"2px 0 5px rgba(0,0,0,0.1)":undefined }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byFormation.map((r,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={r.formation} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, background:bg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)" }}>{r.formation}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:TK.primary }}>{r.plays>0?(r.yards/r.plays).toFixed(1):"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.tds>0?<TkBadge color="green">{r.tds}</TkBadge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.firstDowns}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays>0?Math.round(r.pass/r.plays*100):0}%</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays>0?Math.round(r.run/r.plays*100):0}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TkCollapsible>
+                )}
+
+                {/* Down & Distance table */}
+                {filteredOffPlays.some(p=>p.down) && (
+                  <TkCollapsible title="Down & Distance">
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead><tr style={{ background:TK.buttonBg }}>
+                          {["Down","Plays","Yds/Play","Success Rate"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", textAlign:i===0?"left":"center" }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byDown.map((r,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={r.down} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827" }}>{r.down} Down</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:TK.primary }}>{r.plays>0?r.yardsPerPlay:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>
+                                  {r.plays>0 ? (
+                                    <span style={{ fontWeight:700, color:r.successRate>=50?TK.primary:TK.red }}>{r.successRate}%</span>
+                                  ) : "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TkCollapsible>
+                )}
+              </>)}
+            </>)}
+
+            {/* ── DEFENSE ANALYTICS ──────────────────────────────────────── */}
+            {analyticsSubTab === "Defense" && (<>
+              {filteredDefPlays.length === 0 ? (
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af", fontSize:15 }}>No defensive plays logged yet.</div>
+              ) : (<>
                 <div style={{ display:"grid", gridTemplateColumns:cols4, gap:14 }}>
                   <TkStatCard label="Plays Defended" value={filteredDefPlays.length} accent={TK.red} />
-                  <TkStatCard label="Yards Allowed"
-                    value={filteredDefPlays.reduce((a,b)=>a+(Number(b.yardsAllowed)||0),0)}
-                    sub={`${(filteredDefPlays.reduce((a,b)=>a+(Number(b.yardsAllowed)||0),0)/filteredDefPlays.length).toFixed(1)} yds/play`}
-                    accent={TK.red} />
+                  <TkStatCard label="Yards Allowed" value={filteredDefPlays.reduce((a,b)=>a+(Number(b.yardsAllowed)||0),0)} sub={`${(filteredDefPlays.reduce((a,b)=>a+(Number(b.yardsAllowed)||0),0)/filteredDefPlays.length).toFixed(1)} yds/play`} accent={TK.red} />
                   <TkStatCard label="Sacks" value={filteredDefPlays.filter(p=>p.outcome?.includes("Sack")).length} accent={TK.red} />
-                  <TkStatCard label="TFLs + Sacks"
-                    value={filteredDefPlays.filter(p=>p.outcome?.includes("TFL")||p.outcome?.includes("Sack")).length}
-                    accent={TK.primary} />
+                  <TkStatCard label="TFLs + Sacks" value={filteredDefPlays.filter(p=>p.outcome?.includes("TFL")||p.outcome?.includes("Sack")).length} accent={TK.primary} />
                 </div>
-              </>
-            )}
 
-            {/* ST stat cards */}
-            {stPlays.filter(p=>filterGame==="All"||p.game===filterGame).length > 0 && (
-              <>
-                <div style={{ fontSize:14, fontWeight:800, color:"#5b21b6", textTransform:"uppercase", letterSpacing:1, marginTop:8 }}>Special Teams</div>
+                {/* Defense trend chart */}
+                {defByGame.length >= 2 && (() => {
+                  const active = TK_DEF_METRICS.filter(m => defenseTrendMetrics.includes(m.key));
+                  return (
+                    <TkCollapsible title="Trend Chart" subtitle="Game-over-game · select up to 4 metrics" defaultOpen>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+                        {TK_DEF_METRICS.map(m => {
+                          const on = defenseTrendMetrics.includes(m.key);
+                          const ci = defenseTrendMetrics.indexOf(m.key);
+                          const cc = on ? TK_CHART_COLORS[ci % TK_CHART_COLORS.length] : undefined;
+                          return <button key={m.key} onClick={() => setDefenseTrendMetrics(prev => prev.includes(m.key)?(prev.length>1?prev.filter(k=>k!==m.key):prev):prev.length<4?[...prev,m.key]:prev)} style={{ padding:"4px 12px", borderRadius:99, fontSize:12, fontWeight:on?700:500, border:`1.5px solid ${on?cc:"#d1d5db"}`, background:on?cc:"#f8fafc", color:on?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>{m.label}</button>;
+                        })}
+                        {defenseTrendMetrics.length>=4 && <span style={{ fontSize:11, color:"#9ca3af", alignSelf:"center" }}>Max 4</span>}
+                      </div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:10 }}>
+                        {active.map((m,mi) => <div key={m.key} style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, fontWeight:600, color:"#374151" }}><div style={{ width:18, height:3, borderRadius:2, background:TK_CHART_COLORS[mi%TK_CHART_COLORS.length] }}/>{m.label}</div>)}
+                      </div>
+                      <TkTrendChart gameData={defByGame} metrics={active} />
+                    </TkCollapsible>
+                  );
+                })()}
+
+                {/* Per-player defense table */}
+                {byPlayerDef.length > 0 && (
+                  <TkCollapsible title="Player Stats — Defense" defaultOpen>
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, minWidth:640 }}>
+                        <thead><tr style={{ background:"#991b1b" }}>
+                          {["Player","Pos","Tkl","Ast","TFL","Sacks","INTs","FF","PBU"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", textAlign:i<2?"left":"center", position:i===0?"sticky":undefined, left:i===0?0:undefined, zIndex:i===0?3:undefined, background:i===0?"#991b1b":undefined, boxShadow:i===0?"2px 0 5px rgba(0,0,0,0.1)":undefined }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byPlayerDef.map((p,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={p.id} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, background:bg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)", whiteSpace:"nowrap" }}>{p.name}</td>
+                                <td style={{ padding:"9px 10px" }}>{p.positions.map(pos => <TkBadge key={pos} color="red">{pos}</TkBadge>)}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#111827" }}>{p.tackles||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.assists||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:TK.red, fontWeight:700 }}>{p.tfls||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.sacks>0?<TkBadge color="red">{p.sacks}</TkBadge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{p.ints>0?<TkBadge color="green">{p.ints}</TkBadge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.forcedFumbles||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{p.pbu||"—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TkCollapsible>
+                )}
+              </>)}
+            </>)}
+
+            {/* ── SPECIAL TEAMS ANALYTICS ────────────────────────────────── */}
+            {analyticsSubTab === "Special Teams" && (<>
+              {filteredStPlays.length === 0 ? (
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af", fontSize:15 }}>No special teams plays logged yet.</div>
+              ) : (<>
                 <div style={{ display:"grid", gridTemplateColumns:cols4, gap:14 }}>
-                  <TkStatCard label="ST Plays" value={stPlays.filter(p=>filterGame==="All"||p.game===filterGame).length} accent="#7c3aed" />
-                  <TkStatCard label="FGs Made" value={stPlays.filter(p=>(filterGame==="All"||p.game===filterGame)&&(p.stType==="Field Goal Attempt"||p.stType==="PAT (1pt)")&&p.outcome==="Good").length} accent="#7c3aed" />
-                  <TkStatCard label="Punts" value={stPlays.filter(p=>(filterGame==="All"||p.game===filterGame)&&p.stType==="Punt").length} accent="#7c3aed" />
-                  <TkStatCard label="Kick Returns" value={stPlays.filter(p=>(filterGame==="All"||p.game===filterGame)&&p.stType==="Kick Return").length} accent="#7c3aed" />
+                  <TkStatCard label="ST Plays" value={filteredStPlays.length} accent="#7c3aed" />
+                  <TkStatCard label="FGs Made" value={filteredStPlays.filter(p=>(p.stType==="Field Goal Attempt"||p.stType==="PAT (1pt)")&&p.outcome==="Good").length} accent="#7c3aed" />
+                  <TkStatCard label="Punts" value={filteredStPlays.filter(p=>p.stType==="Punt").length} accent="#7c3aed" />
+                  <TkStatCard label="Kick Returns" value={filteredStPlays.filter(p=>p.stType==="Kick Return").length} accent="#7c3aed" />
                 </div>
-              </>
-            )}
+                <TkCollapsible title="ST Breakdown by Type" defaultOpen>
+                  {Object.entries(filteredStPlays.reduce((acc,p)=>{ acc[p.stType]=(acc[p.stType]||[]); acc[p.stType].push(p); return acc; },{})).map(([type,plays]) => (
+                    <div key={type} style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:13, fontWeight:800, color:"#374151", marginBottom:6 }}>{type} <span style={{ fontWeight:500, color:"#9ca3af" }}>({plays.length} plays)</span></div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                        {Object.entries(plays.reduce((acc,p)=>{ acc[p.outcome]=(acc[p.outcome]||0)+1; return acc; },{})).sort((a,b)=>b[1]-a[1]).map(([outcome,cnt]) => (
+                          <span key={outcome} style={{ fontSize:12, background:"#f3f4f6", color:"#374151", padding:"3px 10px", borderRadius:99 }}>
+                            {outcome}: <strong>{cnt}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </TkCollapsible>
+              </>)}
+            </>)}
+          </div>
+        )}
 
-            {filteredOffPlays.length === 0 && filteredDefPlays.length === 0 && stPlays.length === 0 && (
-              <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af", fontSize:15 }}>
-                No plays logged yet. Head to <strong>Log a Play +</strong> to get started.
-              </div>
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* GAME SUMMARY TAB                                                    */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {tab === "Game Summary" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+            <div style={{ fontSize:20, fontWeight:900, color:"#111827" }}>Game Summary</div>
+            {games.length === 0 ? (
+              <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af" }}>No games configured. Add games in Settings → General.</div>
+            ) : games.map(game => {
+              const gOffPlays = plays.filter(p => p.game === game);
+              const gDefPlays = defPlays.filter(p => p.game === game);
+              const hasData   = gOffPlays.length > 0 || gDefPlays.length > 0;
+              const score     = gameScores[game] || {};
+
+              // Offense
+              const offYards = gOffPlays.reduce((a,b)=>a+(Number(b.yardsGained)||0),0);
+              const offTDs   = gOffPlays.filter(p=>p.outcome==="TD").length;
+
+              // Defense
+              const defYards = gDefPlays.reduce((a,b)=>a+(Number(b.yardsAllowed)||0),0);
+              const defSacks = gDefPlays.filter(p=>p.outcome?.includes("Sack")).length;
+
+              // Top performers
+              const rushMap = {};
+              gOffPlays.filter(p=>p.carrier).forEach(p => { rushMap[p.carrier]=(rushMap[p.carrier]||0)+(Number(p.yardsGained)||0); });
+              const topRusherId  = Object.entries(rushMap).sort((a,b)=>b[1]-a[1])[0]?.[0];
+              const topRusher    = topRusherId ? players.find(pl=>String(pl.id)===String(topRusherId)) : null;
+
+              const recMap = {};
+              gOffPlays.filter(p=>p.receiver&&!["Incomplete","Drop"].includes(p.outcome)&&p.outcome)
+                       .forEach(p => { recMap[p.receiver]=(recMap[p.receiver]||0)+(Number(p.yardsGained)||0); });
+              const topReceiverId = Object.entries(recMap).sort((a,b)=>b[1]-a[1])[0]?.[0];
+              const topReceiver   = topReceiverId ? players.find(pl=>String(pl.id)===String(topReceiverId)) : null;
+
+              const tklMap = {};
+              gDefPlays.filter(p=>p.primaryTackler).forEach(p => { tklMap[p.primaryTackler]=(tklMap[p.primaryTackler]||0)+1; });
+              const topTacklerId = Object.entries(tklMap).sort((a,b)=>b[1]-a[1])[0]?.[0];
+              const topTackler   = topTacklerId ? players.find(pl=>String(pl.id)===String(topTacklerId)) : null;
+
+              const winStatus = (score.us != null && score.them != null && (score.us !== "" && score.them !== ""))
+                ? (Number(score.us) > Number(score.them) ? "W" : Number(score.us) < Number(score.them) ? "L" : "T")
+                : null;
+
+              return (
+                <div key={game} style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", overflow:"hidden" }}>
+                  {/* Header */}
+                  <div style={{ background:TK.headerBg, padding:"16px 24px" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+                      <div style={{ fontSize:17, fontWeight:900, color:"#fff" }}>{game}</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <input type="number" min="0" placeholder="Us"
+                          value={score.us ?? ""}
+                          onChange={e => saveGameScore(game, { ...score, us:e.target.value===""?null:Number(e.target.value) })}
+                          style={{ width:52, padding:"5px 8px", borderRadius:6, border:"1px solid rgba(255,255,255,0.3)", background:"rgba(255,255,255,0.12)", color:"#fff", fontFamily:"inherit", fontWeight:800, fontSize:18, textAlign:"center", outline:"none" }} />
+                        <span style={{ color:"rgba(255,255,255,0.6)", fontWeight:700, fontSize:16 }}>–</span>
+                        <input type="number" min="0" placeholder="Them"
+                          value={score.them ?? ""}
+                          onChange={e => saveGameScore(game, { ...score, them:e.target.value===""?null:Number(e.target.value) })}
+                          style={{ width:52, padding:"5px 8px", borderRadius:6, border:"1px solid rgba(255,255,255,0.3)", background:"rgba(255,255,255,0.12)", color:"#fff", fontFamily:"inherit", fontWeight:800, fontSize:18, textAlign:"center", outline:"none" }} />
+                        {winStatus && (
+                          <span style={{ padding:"3px 10px", borderRadius:999, fontSize:13, fontWeight:800, background: winStatus==="W"?"#dcfce7":winStatus==="L"?"#fee2e2":"#f3f4f6", color: winStatus==="W"?"#14532d":winStatus==="L"?"#991b1b":"#374151" }}>{winStatus}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!hasData ? (
+                    <div style={{ padding:"24px", textAlign:"center", color:"#9ca3af", fontSize:13 }}>No plays logged for this game.</div>
+                  ) : (
+                    <div style={{ padding:"20px 24px", display:"flex", flexDirection:"column", gap:16 }}>
+                      {/* Offense + Defense stat rows */}
+                      <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:14 }}>
+                        {gOffPlays.length > 0 && (
+                          <div style={{ background:"#f0fdf4", borderRadius:12, padding:"14px 16px", border:"1px solid #bbf7d0" }}>
+                            <div style={{ fontSize:11, fontWeight:800, color:TK.primary, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>⚔️ Offense</div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8, textAlign:"center" }}>
+                              {[
+                                { label:"Plays",     val:gOffPlays.length },
+                                { label:"Yards",     val:offYards },
+                                { label:"TDs",       val:offTDs },
+                                { label:"Yds/Play",  val:gOffPlays.length>0?(offYards/gOffPlays.length).toFixed(1):0 },
+                                { label:"1st Downs", val:gOffPlays.filter(p=>p.outcome==="First Down"||p.outcome==="TD").length },
+                                { label:"3rd%",      val:(() => { const t3=gOffPlays.filter(p=>p.down==="3"); return t3.length>0?`${Math.round(t3.filter(p=>p.outcome==="First Down"||p.outcome==="TD").length/t3.length*100)}%`:"—"; })() },
+                              ].map(s => (
+                                <div key={s.label}>
+                                  <div style={{ fontSize:18, fontWeight:900, color:TK.primaryDark }}>{s.val}</div>
+                                  <div style={{ fontSize:10, color:"#6b7280", fontWeight:600, textTransform:"uppercase", letterSpacing:0.4 }}>{s.label}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {gDefPlays.length > 0 && (
+                          <div style={{ background:"#fef2f2", borderRadius:12, padding:"14px 16px", border:"1px solid #fecaca" }}>
+                            <div style={{ fontSize:11, fontWeight:800, color:TK.red, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>🛡 Defense</div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8, textAlign:"center" }}>
+                              {[
+                                { label:"Plays",       val:gDefPlays.length },
+                                { label:"Yds Allowed", val:defYards },
+                                { label:"TDs Allowed", val:gDefPlays.filter(p=>p.outcome?.includes("TD Allowed")).length },
+                                { label:"Yds/Play",    val:gDefPlays.length>0?(defYards/gDefPlays.length).toFixed(1):0 },
+                                { label:"Sacks",       val:defSacks },
+                                { label:"TFLs",        val:gDefPlays.filter(p=>p.outcome?.includes("TFL")).length },
+                              ].map(s => (
+                                <div key={s.label}>
+                                  <div style={{ fontSize:18, fontWeight:900, color:"#991b1b" }}>{s.val}</div>
+                                  <div style={{ fontSize:10, color:"#6b7280", fontWeight:600, textTransform:"uppercase", letterSpacing:0.4 }}>{s.label}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Top performers */}
+                      {(topRusher || topReceiver || topTackler) && (
+                        <div>
+                          <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Top Performers</div>
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
+                            {topRusher && (
+                              <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"9px 14px" }}>
+                                <div style={{ fontSize:10, color:TK.primary, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, marginBottom:2 }}>🏃 Top Rusher</div>
+                                <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{topRusher.name}</div>
+                                <div style={{ fontSize:12, color:"#6b7280" }}>{rushMap[topRusherId]} yds · {gOffPlays.filter(p=>String(p.carrier)===String(topRusherId)).length} car</div>
+                              </div>
+                            )}
+                            {topReceiver && (
+                              <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:10, padding:"9px 14px" }}>
+                                <div style={{ fontSize:10, color:"#1d4ed8", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, marginBottom:2 }}>📡 Top Receiver</div>
+                                <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{topReceiver.name}</div>
+                                <div style={{ fontSize:12, color:"#6b7280" }}>{recMap[topReceiverId]} yds</div>
+                              </div>
+                            )}
+                            {topTackler && (
+                              <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:10, padding:"9px 14px" }}>
+                                <div style={{ fontSize:10, color:TK.red, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, marginBottom:2 }}>🛡 Top Tackler</div>
+                                <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{topTackler.name}</div>
+                                <div style={{ fontSize:12, color:"#6b7280" }}>{tklMap[topTacklerId]} tackles</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* REPORT CARDS TAB                                                   */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {tab === "Report Cards" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+            {selectedPlayer ? (() => {
+              const pl = players.find(p => String(p.id) === String(selectedPlayer));
+              if (!pl) { setSelectedPlayer(null); return null; }
+
+              // Season totals — offense
+              const offStats = {
+                carries:    plays.filter(p=>String(p.carrier)===String(pl.id)).length,
+                rushYards:  plays.filter(p=>String(p.carrier)===String(pl.id)).reduce((a,b)=>a+(Number(b.yardsGained)||0),0),
+                rushTDs:    plays.filter(p=>String(p.carrier)===String(pl.id)&&p.outcome==="TD").length,
+                targets:    plays.filter(p=>String(p.receiver)===String(pl.id)).length,
+                receptions: plays.filter(p=>String(p.receiver)===String(pl.id)&&!["Incomplete","Drop"].includes(p.outcome)&&p.outcome).length,
+                recYards:   plays.filter(p=>String(p.receiver)===String(pl.id)&&!["Incomplete","Drop"].includes(p.outcome)&&p.outcome).reduce((a,b)=>a+(Number(b.yardsGained)||0),0),
+                recTDs:     plays.filter(p=>String(p.receiver)===String(pl.id)&&p.outcome==="TD").length,
+              };
+              const hasOff = offStats.carries>0 || offStats.targets>0;
+
+              // Season totals — defense
+              const defStats = {
+                tackles:      defPlays.filter(p=>String(p.primaryTackler)===String(pl.id)).length,
+                assists:      defPlays.filter(p=>String(p.secondaryTackler)===String(pl.id)&&p.secondaryTackler!==p.primaryTackler).length,
+                tfls:         defPlays.filter(p=>String(p.primaryTackler)===String(pl.id)&&p.outcome?.includes("TFL")).length,
+                sacks:        defPlays.filter(p=>String(p.primaryTackler)===String(pl.id)&&p.outcome?.includes("Sack")).length,
+                ints:         defPlays.filter(p=>String(p.primaryTackler)===String(pl.id)&&p.outcome?.includes("INT")).length,
+                forcedFumbles:defPlays.filter(p=>String(p.primaryTackler)===String(pl.id)&&p.outcome?.includes("Forced Fumble")).length,
+                pbu:          defPlays.filter(p=>String(p.primaryTackler)===String(pl.id)&&p.playerAction?.includes("PBU")).length,
+              };
+              const hasDef = defStats.tackles>0 || defStats.assists>0 || defStats.ints>0;
+
+              // Last game with plays
+              const pid = String(pl.id);
+              const lastGame = [...games].reverse().find(g =>
+                plays.some(p=>(String(p.carrier)===pid||String(p.receiver)===pid)&&p.game===g) ||
+                defPlays.some(p=>(String(p.primaryTackler)===pid||String(p.secondaryTackler)===pid)&&p.game===g)
+              );
+              const lgOff = lastGame ? {
+                carries:    plays.filter(p=>p.game===lastGame&&String(p.carrier)===pid).length,
+                rushYards:  plays.filter(p=>p.game===lastGame&&String(p.carrier)===pid).reduce((a,b)=>a+(Number(b.yardsGained)||0),0),
+                rushTDs:    plays.filter(p=>p.game===lastGame&&String(p.carrier)===pid&&p.outcome==="TD").length,
+                targets:    plays.filter(p=>p.game===lastGame&&String(p.receiver)===pid).length,
+                receptions: plays.filter(p=>p.game===lastGame&&String(p.receiver)===pid&&!["Incomplete","Drop"].includes(p.outcome)&&p.outcome).length,
+                recYards:   plays.filter(p=>p.game===lastGame&&String(p.receiver)===pid&&!["Incomplete","Drop"].includes(p.outcome)&&p.outcome).reduce((a,b)=>a+(Number(b.yardsGained)||0),0),
+                recTDs:     plays.filter(p=>p.game===lastGame&&String(p.receiver)===pid&&p.outcome==="TD").length,
+              } : null;
+              const lgDef = lastGame ? {
+                tackles: defPlays.filter(p=>p.game===lastGame&&String(p.primaryTackler)===pid).length,
+                assists: defPlays.filter(p=>p.game===lastGame&&String(p.secondaryTackler)===pid).length,
+                tfls:    defPlays.filter(p=>p.game===lastGame&&String(p.primaryTackler)===pid&&p.outcome?.includes("TFL")).length,
+                sacks:   defPlays.filter(p=>p.game===lastGame&&String(p.primaryTackler)===pid&&p.outcome?.includes("Sack")).length,
+                ints:    defPlays.filter(p=>p.game===lastGame&&String(p.primaryTackler)===pid&&p.outcome?.includes("INT")).length,
+              } : null;
+
+              const note = playerNotes[pid] || "";
+
+              return (
+                <>
+                  <button onClick={() => setSelectedPlayer(null)} style={{ alignSelf:"flex-start", display:"flex", alignItems:"center", gap:6, padding:"6px 0", background:"none", border:"none", cursor:"pointer", fontSize:14, fontWeight:700, color:TK.primary, fontFamily:"inherit" }}>
+                    ← All Players
+                  </button>
+
+                  {/* Player header */}
+                  <div style={{ background:TK.headerBg, borderRadius:16, padding:"20px 24px", display:"flex", alignItems:"center", gap:16 }}>
+                    <div style={{ width:52, height:52, borderRadius:"50%", background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:900, color:"#fff", flexShrink:0 }}>
+                      {pl.number ? `#${pl.number}` : pl.name[0]}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>{pl.name}</div>
+                      <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginTop:4 }}>
+                        {getPositions(pl).map(pos => <TkBadge key={pos} color="green">{pos}</TkBadge>)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Season offense */}
+                  {hasOff && (
+                    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:TK.primary, marginBottom:14 }}>Season — Offense</div>
+                      <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)", gap:10 }}>
+                        {[
+                          { label:"Carries",    val:offStats.carries||"—" },
+                          { label:"Rush Yds",   val:offStats.rushYards||"—" },
+                          { label:"Yds/Carry",  val:offStats.carries>0?(offStats.rushYards/offStats.carries).toFixed(1):"—" },
+                          { label:"Rush TDs",   val:offStats.rushTDs||"—" },
+                          { label:"Targets",    val:offStats.targets||"—" },
+                          { label:"Receptions", val:offStats.receptions||"—" },
+                          { label:"Rec Yards",  val:offStats.recYards||"—" },
+                          { label:"Rec TDs",    val:offStats.recTDs||"—" },
+                        ].map(s => (
+                          <div key={s.label} style={{ textAlign:"center", padding:"10px 4px", borderRadius:10, background:"#f0fdf4" }}>
+                            <div style={{ fontSize:20, fontWeight:900, color:TK.primaryDark }}>{s.val}</div>
+                            <div style={{ fontSize:10, color:"#6b7280", fontWeight:600, textTransform:"uppercase", letterSpacing:0.4, marginTop:2 }}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Season defense */}
+                  {hasDef && (
+                    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:TK.red, marginBottom:14 }}>Season — Defense</div>
+                      <div style={{ display:"grid", gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)", gap:10 }}>
+                        {[
+                          { label:"Tackles", val:defStats.tackles||"—" },
+                          { label:"Assists",  val:defStats.assists||"—" },
+                          { label:"TFLs",     val:defStats.tfls||"—" },
+                          { label:"Sacks",    val:defStats.sacks||"—" },
+                          { label:"INTs",     val:defStats.ints||"—" },
+                          { label:"FF",       val:defStats.forcedFumbles||"—" },
+                          { label:"PBU",      val:defStats.pbu||"—" },
+                        ].map(s => (
+                          <div key={s.label} style={{ textAlign:"center", padding:"10px 4px", borderRadius:10, background:"#fef2f2" }}>
+                            <div style={{ fontSize:20, fontWeight:900, color:"#991b1b" }}>{s.val}</div>
+                            <div style={{ fontSize:10, color:"#6b7280", fontWeight:600, textTransform:"uppercase", letterSpacing:0.4, marginTop:2 }}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Last game highlights */}
+                  {lastGame && (lgOff?.carries > 0 || lgOff?.targets > 0 || lgDef?.tackles > 0) && (
+                    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:"#374151", marginBottom:10 }}>Last Game — {lastGame}</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                        {lgOff?.carries > 0 && <span style={{ fontSize:13, background:"#f0fdf4", color:TK.primaryDark, fontWeight:700, padding:"6px 12px", borderRadius:8 }}>🏃 {lgOff.carries} car · {lgOff.rushYards} rush yds{lgOff.rushTDs>0?` · ${lgOff.rushTDs} TD`:""}</span>}
+                        {lgOff?.targets > 0 && <span style={{ fontSize:13, background:"#eff6ff", color:"#1e40af", fontWeight:700, padding:"6px 12px", borderRadius:8 }}>📡 {lgOff.receptions}/{lgOff.targets} rec · {lgOff.recYards} yds{lgOff.recTDs>0?` · ${lgOff.recTDs} TD`:""}</span>}
+                        {lgDef?.tackles > 0 && <span style={{ fontSize:13, background:"#fef2f2", color:"#991b1b", fontWeight:700, padding:"6px 12px", borderRadius:8 }}>🛡 {lgDef.tackles} tkl{lgDef.assists>0?` · ${lgDef.assists} ast`:""}{lgDef.sacks>0?` · ${lgDef.sacks} sack`:""}{lgDef.tfls>0?` · ${lgDef.tfls} TFL`:""}{lgDef.ints>0?` · ${lgDef.ints} INT`:""}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Focus Areas */}
+                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                    <div style={{ fontSize:14, fontWeight:800, color:"#374151", marginBottom:6 }}>Focus Areas</div>
+                    <div style={{ fontSize:12, color:"#9ca3af", marginBottom:10 }}>Coach notes for this player. Saved automatically.</div>
+                    <textarea
+                      placeholder="e.g. Work on route running from the slot. Great run blocking this week."
+                      value={note}
+                      onChange={e => savePlayerNote(pid, e.target.value)}
+                      style={{ width:"100%", minHeight:120, padding:"10px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontFamily:"inherit", fontSize:14, color:"#111827", resize:"vertical", boxSizing:"border-box", outline:"none", lineHeight:1.6 }}
+                    />
+                  </div>
+                </>
+              );
+            })() : (
+              <>
+                <div style={{ fontSize:20, fontWeight:900, color:"#111827" }}>Report Cards</div>
+                {players.length === 0 ? (
+                  <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af" }}>No players added yet. Add players in Settings → General.</div>
+                ) : (
+                  <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3, 1fr)", gap:14 }}>
+                    {[...players].sort((a,b)=>a.name.localeCompare(b.name)).map(pl => {
+                      const pid = String(pl.id);
+                      const hasOff = plays.some(p=>String(p.carrier)===pid||String(p.receiver)===pid);
+                      const hasDef = defPlays.some(p=>String(p.primaryTackler)===pid||String(p.secondaryTackler)===pid);
+                      const offTDs = plays.filter(p=>(String(p.carrier)===pid||String(p.receiver)===pid)&&p.outcome==="TD").length;
+                      const tklCnt = defPlays.filter(p=>String(p.primaryTackler)===pid).length;
+                      const hasNote = !!playerNotes[pid];
+                      return (
+                        <button key={pl.id} onClick={() => setSelectedPlayer(pl.id)}
+                          style={{ background:"#fff", borderRadius:14, border:"1.5px solid #e5e7eb", padding:"16px", textAlign:"left", cursor:"pointer", fontFamily:"inherit" }}
+                          onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(21,128,61,0.13)"}
+                          onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                            <div style={{ width:38, height:38, borderRadius:"50%", background:TK.primaryLight, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:900, color:TK.primaryDark, flexShrink:0 }}>
+                              {pl.number ? `#${pl.number}` : pl.name[0]}
+                            </div>
+                            <div>
+                              <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{pl.name}</div>
+                              <div style={{ display:"flex", gap:3, flexWrap:"wrap", marginTop:2 }}>
+                                {getPositions(pl).map(pos => <TkBadge key={pos} color="green">{pos}</TkBadge>)}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                            {hasOff && offTDs > 0 && <span style={{ fontSize:11, background:"#f0fdf4", color:TK.primaryDark, fontWeight:700, padding:"2px 8px", borderRadius:6 }}>{offTDs} TD{offTDs!==1?"s":""}</span>}
+                            {hasDef && tklCnt > 0 && <span style={{ fontSize:11, background:"#fef2f2", color:"#991b1b", fontWeight:700, padding:"2px 8px", borderRadius:6 }}>{tklCnt} Tkl</span>}
+                            {hasNote && <span style={{ fontSize:11, background:"#fef9c3", color:"#854d0e", fontWeight:700, padding:"2px 8px", borderRadius:6 }}>📝 Notes</span>}
+                            {!hasOff && !hasDef && <span style={{ fontSize:11, color:"#d1d5db" }}>No plays yet</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1210,42 +1937,78 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                 {/* Players */}
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Players</div>
-                  <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 80px 1fr", gap:8, marginBottom:12 }}>
-                    <input style={{ ...inp, padding:"9px 12px" }} placeholder="Name" value={newPlayer.name} onChange={e => setNewPlayer(p => ({ ...p, name:e.target.value }))} />
-                    <input style={{ ...inp, padding:"9px 12px" }} placeholder="#" value={newPlayer.number} onChange={e => setNewPlayer(p => ({ ...p, number:e.target.value }))} />
-                    <select style={{ ...inp, padding:"9px 12px" }} value={newPlayer.position} onChange={e => setNewPlayer(p => ({ ...p, position:e.target.value }))}>
-                      <option value="">Pos</option>
-                      {positions.map(pos => <option key={pos}>{pos}</option>)}
-                    </select>
-                    <button onClick={() => {
-                      if (newPlayer.name.trim() && newPlayer.position) {
-                        savePlayers([...players, { id:Date.now(), ...newPlayer, name:newPlayer.name.trim() }]);
-                        setNewPlayer({ name:"", number:"", position:"" });
-                      }
-                    }} style={{ padding:"9px 14px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Add</button>
+
+                  {/* Add player form */}
+                  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                    <input style={{ ...inp, padding:"9px 12px", flex:2 }} placeholder="Full name" value={newPlayer.name} onChange={e => setNewPlayer(p => ({ ...p, name:e.target.value }))} />
+                    <input style={{ ...inp, padding:"9px 12px", width:72 }} placeholder="#" value={newPlayer.number} onChange={e => setNewPlayer(p => ({ ...p, number:e.target.value }))} />
                   </div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:320, overflowY:"auto" }}>
-                    {players.sort((a,b)=>a.name.localeCompare(b.name)).map((pl,i) => (
-                      <div key={pl.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:"#f8fafc", borderRadius:8 }}>
+                  <div style={{ marginBottom:12 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginBottom:6, letterSpacing:0.5 }}>POSITIONS — tap to select (choose all that apply)</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                      {positions.map(pos => {
+                        const sel = newPlayer.positions.includes(pos);
+                        return (
+                          <button key={pos} onClick={() => setNewPlayer(p => ({ ...p, positions:sel?p.positions.filter(x=>x!==pos):[...p.positions,pos] }))}
+                            style={{ padding:"4px 10px", borderRadius:99, fontSize:12, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                            {pos}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    if (newPlayer.name.trim() && newPlayer.positions.length > 0) {
+                      savePlayers([...players, { id:Date.now(), name:newPlayer.name.trim(), number:newPlayer.number, positions:newPlayer.positions }]);
+                      setNewPlayer({ name:"", number:"", positions:[] });
+                    }
+                  }} style={{ padding:"9px 20px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13, marginBottom:20 }}>
+                    Add Player
+                  </button>
+
+                  {/* Player list */}
+                  <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:400, overflowY:"auto" }}>
+                    {[...players].sort((a,b)=>a.name.localeCompare(b.name)).map(pl => (
+                      <div key={pl.id} style={{ padding:"10px 14px", background:"#f8fafc", borderRadius:10, border:"1px solid #e5e7eb" }}>
                         {editingPlayer?.id===pl.id ? (
                           <>
-                            <input autoFocus style={{ ...inp, flex:2, padding:"4px 8px", fontSize:13 }} value={editingPlayer.name} onChange={e => setEditingPlayer(ep => ({ ...ep, name:e.target.value }))} />
-                            <input style={{ ...inp, width:60, padding:"4px 8px", fontSize:13 }} value={editingPlayer.number||""} onChange={e => setEditingPlayer(ep => ({ ...ep, number:e.target.value }))} placeholder="#" />
-                            <select style={{ ...inp, flex:1, padding:"4px 8px", fontSize:13 }} value={editingPlayer.position} onChange={e => setEditingPlayer(ep => ({ ...ep, position:e.target.value }))}>
-                              {positions.map(pos => <option key={pos}>{pos}</option>)}
-                            </select>
-                            <button onClick={() => { if(editingPlayer.name.trim()) savePlayers(players.map(p=>p.id===pl.id?{...p,...editingPlayer}:p)); setEditingPlayer(null); }}
-                              style={{ border:"none", background:"#d1fae5", color:"#065f46", borderRadius:6, padding:"3px 8px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
-                            <button onClick={() => setEditingPlayer(null)} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:15, padding:0 }}>×</button>
+                            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                              <input autoFocus style={{ ...inp, flex:2, padding:"6px 10px", fontSize:13 }} value={editingPlayer.name} onChange={e => setEditingPlayer(ep => ({ ...ep, name:e.target.value }))} />
+                              <input style={{ ...inp, width:64, padding:"6px 10px", fontSize:13 }} value={editingPlayer.number||""} onChange={e => setEditingPlayer(ep => ({ ...ep, number:e.target.value }))} placeholder="#" />
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:10 }}>
+                              {positions.map(pos => {
+                                const epPos = editingPlayer.positions || (editingPlayer.position ? [editingPlayer.position] : []);
+                                const sel = epPos.includes(pos);
+                                return (
+                                  <button key={pos} onClick={() => setEditingPlayer(ep => {
+                                    const cur = ep.positions || (ep.position ? [ep.position] : []);
+                                    return { ...ep, positions:sel?cur.filter(x=>x!==pos):[...cur,pos], position:undefined };
+                                  })}
+                                    style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                                    {pos}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div style={{ display:"flex", gap:6 }}>
+                              <button onClick={() => { if(editingPlayer.name.trim()) savePlayers(players.map(p=>p.id===pl.id?{...p,...editingPlayer}:p)); setEditingPlayer(null); }}
+                                style={{ border:"none", background:"#d1fae5", color:"#065f46", borderRadius:6, padding:"5px 12px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
+                              <button onClick={() => setEditingPlayer(null)}
+                                style={{ border:"none", background:"#f3f4f6", color:"#6b7280", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Cancel</button>
+                            </div>
                           </>
                         ) : (
                           <>
-                            <span style={{ fontSize:13, fontWeight:700, color:"#111827", flex:2 }}>{pl.name}</span>
-                            {pl.number && <span style={{ fontSize:12, color:"#6b7280" }}>#{pl.number}</span>}
-                            <TkBadge color="green">{pl.position}</TkBadge>
-                            <button onClick={() => setEditingPlayer({ ...pl })} style={{ border:"none", background:"none", color:"#6b7280", cursor:"pointer", fontSize:13, padding:"0 2px", marginLeft:"auto" }}>✏️</button>
-                            <button onClick={() => { if(window.confirm(`Delete ${pl.name}?`)) savePlayers(players.filter(p=>p.id!==pl.id)); }}
-                              style={{ border:"none", background:"none", color:"#ef4444", cursor:"pointer", fontSize:15, padding:0 }}>×</button>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                              <span style={{ fontSize:13, fontWeight:700, color:"#111827", flex:1 }}>{pl.name}{pl.number?` #${pl.number}`:""}</span>
+                              <button onClick={() => setEditingPlayer({ ...pl, positions:getPositions(pl) })} style={{ border:"none", background:"none", color:"#6b7280", cursor:"pointer", fontSize:13, padding:"0 3px" }}>✏️</button>
+                              <button onClick={() => { if(window.confirm(`Delete ${pl.name}?`)) savePlayers(players.filter(p=>p.id!==pl.id)); }}
+                                style={{ border:"none", background:"none", color:"#ef4444", cursor:"pointer", fontSize:15, padding:0 }}>×</button>
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                              {getPositions(pl).map(pos => <TkBadge key={pos} color="green">{pos}</TkBadge>)}
+                            </div>
                           </>
                         )}
                       </div>
@@ -1322,27 +2085,20 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                 </div>
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Play Codes</div>
-                  {(() => {
-                    const [newCode, setNewCode] = useState("");
-                    return (
-                      <>
-                        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-                          <input style={{ ...inp, flex:1 }} placeholder="e.g. 24 Power" value={newCode} onChange={e => setNewCode(e.target.value)}
-                            onKeyDown={e => { if(e.key==="Enter"&&newCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newCode.trim()}]);setNewCode("");}}} />
-                          <button onClick={() => { if(newCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newCode.trim()}]);setNewCode("");}}}
-                            style={{ padding:"9px 14px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Add</button>
-                        </div>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                          {playCodes.map(pc => (
-                            <div key={pc.id} style={{ background:"#dcfce7", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                              <span style={{ fontSize:13, fontWeight:700, color:TK.primaryDark }}>{pc.code}</span>
-                              <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:13, padding:0 }}>×</button>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    );
-                  })()}
+                  <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+                    <input style={{ ...inp, flex:1 }} placeholder="e.g. 24 Power" value={newPlayCode} onChange={e => setNewPlayCode(e.target.value)}
+                      onKeyDown={e => { if(e.key==="Enter"&&newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim()}]);setNewPlayCode("");}}} />
+                    <button onClick={() => { if(newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim()}]);setNewPlayCode("");}}}
+                      style={{ padding:"9px 14px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>Add</button>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                    {playCodes.map(pc => (
+                      <div key={pc.id} style={{ background:"#dcfce7", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                        <span style={{ fontSize:13, fontWeight:700, color:TK.primaryDark }}>{pc.code}</span>
+                        <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:13, padding:0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
