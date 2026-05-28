@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import React from "react";
+import TackleCoach from "./tackle-coach.jsx";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -803,6 +804,67 @@ function TrendChart({ gameData, metrics }) {
   );
 }
 
+// ── Portal Selector ───────────────────────────────────────────────────────────
+function PortalSelector({ onSelect }) {
+  return (
+    <div style={{
+      minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", background:"#f4f6fa",
+      fontFamily:"'DM Sans', system-ui, sans-serif", padding:24,
+    }}>
+      <div style={{ marginBottom:12 }}>
+        <span style={{ fontSize:36 }}>🏈</span>
+      </div>
+      <div style={{ fontSize:28, fontWeight:900, color:"#111827", marginBottom:6, letterSpacing:-0.5 }}>Coacher</div>
+      <div style={{ fontSize:15, color:"#6b7280", marginBottom:40 }}>Select your portal to continue</div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:20, width:"100%", maxWidth:560 }}>
+        {/* Passing League */}
+        <button onClick={() => onSelect("passing")} style={{
+          background:"#fff", border:"2px solid #e5e7eb", borderRadius:20,
+          padding:"32px 28px", cursor:"pointer", fontFamily:"inherit",
+          display:"flex", flexDirection:"column", alignItems:"flex-start", gap:10,
+          textAlign:"left", transition:"all 0.15s",
+          boxShadow:"0 2px 12px rgba(0,0,0,0.06)",
+        }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor="#1a2f5e"; e.currentTarget.style.boxShadow="0 8px 28px rgba(26,47,94,0.15)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor="#e5e7eb"; e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.06)"; }}
+        >
+          <div style={{ width:48, height:48, borderRadius:14, background:"#e8eef7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>🏈</div>
+          <div>
+            <div style={{ fontSize:18, fontWeight:800, color:"#1a2f5e", marginBottom:4 }}>Passing League</div>
+            <div style={{ fontSize:13, color:"#6b7280", lineHeight:1.5 }}>Flag football & 7v7 — passing stats, routes, and skill tracking</div>
+          </div>
+          <div style={{ marginTop:4, fontSize:13, fontWeight:700, color:"#1a2f5e", display:"flex", alignItems:"center", gap:4 }}>
+            Open portal <span>→</span>
+          </div>
+        </button>
+
+        {/* Tackle */}
+        <button onClick={() => onSelect("tackle")} style={{
+          background:"#fff", border:"2px solid #e5e7eb", borderRadius:20,
+          padding:"32px 28px", cursor:"pointer", fontFamily:"inherit",
+          display:"flex", flexDirection:"column", alignItems:"flex-start", gap:10,
+          textAlign:"left", transition:"all 0.15s",
+          boxShadow:"0 2px 12px rgba(0,0,0,0.06)",
+        }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor="#14532d"; e.currentTarget.style.boxShadow="0 8px 28px rgba(20,83,45,0.15)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor="#e5e7eb"; e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.06)"; }}
+        >
+          <div style={{ width:48, height:48, borderRadius:14, background:"#dcfce7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:26 }}>🏟️</div>
+          <div>
+            <div style={{ fontSize:18, fontWeight:800, color:"#14532d", marginBottom:4 }}>Tackle</div>
+            <div style={{ fontSize:13, color:"#6b7280", lineHeight:1.5 }}>Full tackle football — formations, schemes, ST, and depth chart tracking</div>
+          </div>
+          <div style={{ marginTop:4, fontSize:13, fontWeight:700, color:"#14532d", display:"flex", alignItems:"center", gap:4 }}>
+            Open portal <span>→</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function FootballCoach() {
   // Show shared game view if ?share= param is present
@@ -813,6 +875,7 @@ export default function FootballCoach() {
   const [authUser,    setAuthUser]    = useState(null);   // Firebase user object
   const [userProfile, setUserProfile] = useState(null);   // { instanceId, role, name }
   const [authLoading, setAuthLoading] = useState(true);
+  const [selectedPortal, setSelectedPortal] = useState(null);
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
@@ -829,6 +892,24 @@ export default function FootballCoach() {
   }, []);
 
   const instanceId = userProfile?.instanceId;
+
+  // Restore portal choice from localStorage once instanceId is known
+  useEffect(() => {
+    if (instanceId) {
+      const saved = localStorage.getItem(`coacher_portal_${instanceId}`);
+      if (saved) setSelectedPortal(saved);
+    }
+  }, [instanceId]);
+
+  const selectPortal = (portal) => {
+    if (instanceId) localStorage.setItem(`coacher_portal_${instanceId}`, portal);
+    setSelectedPortal(portal);
+  };
+
+  const clearPortal = () => {
+    if (instanceId) localStorage.removeItem(`coacher_portal_${instanceId}`);
+    setSelectedPortal(null);
+  };
 
   // ── Firestore real-time state ────────────────────────────────────────────
   const [plays,         setPlays]         = useState([]);
@@ -1511,7 +1592,18 @@ const handleLogoDelete = async () => {
     </div>
   );
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Portal routing ────────────────────────────────────────────────────────
+  if (!selectedPortal) return <PortalSelector onSelect={selectPortal} />;
+  if (selectedPortal === "tackle") return (
+    <TackleCoach
+      instanceId={instanceId}
+      authUser={authUser}
+      userProfile={userProfile}
+      onSwitchPortal={clearPortal}
+    />
+  );
+
+  // ── Render (Passing League) ───────────────────────────────────────────────
   return (
     <div style={{ minHeight:"100vh", background:"#f4f6fa", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
       {/* ── Header ── */}
@@ -1532,6 +1624,11 @@ const handleLogoDelete = async () => {
                 </div>
               )}
             </div>
+            {/* Switch Portal button — always visible */}
+            <button onClick={clearPortal}
+              style={{ padding:"6px 12px", background:"rgba(255,255,255,0.10)", color:"rgba(255,255,255,0.85)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:5, flexShrink:0 }}>
+              ⇄ {isMobile ? "" : "Switch Portal"}
+            </button>
             {/* Desktop: Manage dropdown */}
             {!isMobile && (
               <div style={{ position:"relative" }}>
@@ -1596,6 +1693,10 @@ const handleLogoDelete = async () => {
                   </button>
                 ))}
                 <div style={{ height:"1px", background:"#e5e7eb", margin:"8px 0" }} />
+                <button onClick={() => { clearPortal(); setMobileMoreOpen(false); }}
+                  style={{ width:"100%", padding:"16px 24px", background:"none", border:"none", textAlign:"left", fontSize:16, fontWeight:700, color:"#374151", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:14 }}>
+                  <span style={{ fontSize:22 }}>⇄</span> Switch Portal
+                </button>
                 <button onClick={() => signOut(auth)}
                   style={{ width:"100%", padding:"16px 24px", background:"none", border:"none", textAlign:"left", fontSize:16, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:14 }}>
                   <span style={{ fontSize:22 }}>🚪</span> Sign Out
