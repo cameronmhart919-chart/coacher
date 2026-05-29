@@ -308,8 +308,10 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [selectedPlayer, setSelectedPlayer] = useState(null); // for report card detail
   const [offenseTrendMetrics, setOffenseTrendMetrics] = useState(["yards"]);
   const [defenseTrendMetrics, setDefenseTrendMetrics] = useState(["yardsAllowed"]);
-  const [newPlayCode,   setNewPlayCode]   = useState(""); // fixes useState-in-render bug
-  const [newPlayCodeCat, setNewPlayCodeCat] = useState("Run");
+  const [newPlayCode,      setNewPlayCode]      = useState(""); // fixes useState-in-render bug
+  const [newPlayCodeCat,   setNewPlayCodeCat]   = useState("Run");
+  const [newBlockingScheme,    setNewBlockingScheme]    = useState("");
+  const [newBlockingSchemeCat, setNewBlockingSchemeCat] = useState("Run");
 
   // ── Firestore data ───────────────────────────────────────────────────────────
   const [plays,         setPlays]         = useState([]);
@@ -355,7 +357,11 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     listenDoc("tackle_config/positions",      snap => setPositions(snap.positions || TK_POSITIONS));
     listenDoc("tackle_config/formations",     snap => setFormations(snap.formations || TK_FORMATIONS));
     listenDoc("tackle_config/personnel",      snap => setPersonnel(snap.personnel || TK_PERSONNEL));
-    listenDoc("tackle_config/blockingSchemes",snap => setBlockingSchemes(snap.schemes || TK_BLOCKING_SCHEMES));
+    listenDoc("tackle_config/blockingSchemes", snap => {
+      const raw = snap.schemes || TK_BLOCKING_SCHEMES;
+      // normalise legacy plain strings to { id, name, category } objects
+      setBlockingSchemes(raw.map((s, i) => typeof s === "string" ? { id: Date.now() + i, name: s, category: "" } : s));
+    });
     listenDoc("tackle_config/offOutcomes",    snap => setOffOutcomes(snap.outcomes || TK_OFF_OUTCOMES));
     listenDoc("tackle_config/defOutcomes",    snap => setDefOutcomes(snap.outcomes || TK_DEF_OUTCOMES));
     listenDoc("tackle_config/defActions",     snap => setDefActions(snap.actions || TK_DEF_ACTIONS));
@@ -838,7 +844,16 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     <div><label style={lbl}>Blocking Scheme</label>
                       <select style={mInp} value={form.blockingScheme} onChange={e => f("blockingScheme", e.target.value)}>
                         <option value="">— None —</option>
-                        {blockingSchemes.map(s => <option key={s}>{s}</option>)}
+                        {TK_PLAY_CATEGORIES.map(cat => {
+                          const group = blockingSchemes.filter(s => s.category === cat.key);
+                          if (!group.length) return null;
+                          return (
+                            <optgroup key={cat.key} label={cat.label}>
+                              {group.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                            </optgroup>
+                          );
+                        })}
+                        {(() => { const u = blockingSchemes.filter(s => !s.category); return u.length ? <optgroup label="Other">{u.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}</optgroup> : null; })()}
                       </select>
                     </div>
                   </div>
@@ -2085,12 +2100,55 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     placeholder="e.g. 11, 21, 22" />
                 </div>
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Blocking Schemes</div>
-                  <TkStringList items={blockingSchemes}
-                    onAdd={v => saveBlockingSchemes([...blockingSchemes, v])}
-                    onEdit={(i, v) => saveBlockingSchemes(blockingSchemes.map((x,j)=>j===i?v:x))}
-                    onDelete={i => saveBlockingSchemes(blockingSchemes.filter((_,j)=>j!==i))}
-                    placeholder="e.g. Power, Counter" />
+                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Blocking Schemes</div>
+                  <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Assign each scheme to a category so they group together in the logger.</div>
+
+                  {/* Add form */}
+                  <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                    <input style={{ ...inp, flex:2, minWidth:120 }} placeholder="e.g. Inside Zone, Slide Protect" value={newBlockingScheme} onChange={e => setNewBlockingScheme(e.target.value)}
+                      onKeyDown={e => { if(e.key==="Enter"&&newBlockingScheme.trim()){saveBlockingSchemes([...blockingSchemes,{id:Date.now(),name:newBlockingScheme.trim(),category:newBlockingSchemeCat}]);setNewBlockingScheme("");}}} />
+                    <select style={{ ...inp, flex:1, minWidth:90 }} value={newBlockingSchemeCat} onChange={e => setNewBlockingSchemeCat(e.target.value)}>
+                      {TK_PLAY_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                    </select>
+                    <button onClick={() => { if(newBlockingScheme.trim()){saveBlockingSchemes([...blockingSchemes,{id:Date.now(),name:newBlockingScheme.trim(),category:newBlockingSchemeCat}]);setNewBlockingScheme("");}}}
+                      style={{ padding:"9px 16px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13, whiteSpace:"nowrap" }}>Add</button>
+                  </div>
+
+                  {/* Schemes grouped by category */}
+                  {TK_PLAY_CATEGORIES.map(cat => {
+                    const group = blockingSchemes.filter(s => s.category === cat.key);
+                    if (!group.length) return null;
+                    return (
+                      <div key={cat.key} style={{ marginBottom:16 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:cat.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{cat.label}</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                          {group.map(s => (
+                            <div key={s.id} style={{ background:cat.bg, border:`1.5px solid ${cat.border}`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                              <span style={{ fontSize:13, fontWeight:700, color:cat.color }}>{s.name}</span>
+                              <button onClick={() => saveBlockingSchemes(blockingSchemes.filter(x=>x.id!==s.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Legacy / uncategorized */}
+                  {blockingSchemes.filter(s => !s.category).length > 0 && (
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Uncategorized</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                        {blockingSchemes.filter(s => !s.category).map(s => (
+                          <div key={s.id} style={{ background:"#f3f4f6", border:"1.5px solid #e5e7eb", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#374151" }}>{s.name}</span>
+                            <button onClick={() => saveBlockingSchemes(blockingSchemes.filter(x=>x.id!==s.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {blockingSchemes.length === 0 && (
+                    <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No blocking schemes yet. Add one above.</div>
+                  )}
                 </div>
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Offensive Outcomes</div>
