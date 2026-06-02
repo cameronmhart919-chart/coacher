@@ -1033,7 +1033,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                         {defActions.map(a => <option key={a}>{a}</option>)}
                       </select>
                     </div>
-                    <div><label style={lbl}>Primary Tackler</label>
+                    <div><label style={lbl}>Primary Play Maker</label>
                       <select style={mInp} value={defForm.primaryTackler} onChange={e => df("primaryTackler", e.target.value)}>
                         <option value="">— None —</option>
                         {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1041,7 +1041,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     </div>
                   </div>
                   <div style={{ marginBottom:12 }}>
-                    <label style={lbl}>Secondary Tackler / Assist</label>
+                    <label style={lbl}>Secondary Play Maker / Assist</label>
                     <select style={mInp} value={defForm.secondaryTackler} onChange={e => df("secondaryTackler", e.target.value)}>
                       <option value="">— None —</option>
                       {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
