@@ -16,12 +16,12 @@ const tkDocRef = (id, ...segs)  => doc(getDb(), tkBase(id), ...segs);
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const TK = {
-  primary:      "#15803d",
-  primaryDark:  "#14532d",
-  primaryLight: "#dcfce7",
-  buttonBg:     "#14532d",
-  accent:       "#16a34a",
-  headerBg:     "linear-gradient(135deg, #052e16 0%, #14532d 100%)",
+  primary:      "#be123c",
+  primaryDark:  "#881337",
+  primaryLight: "#ffe4e6",
+  buttonBg:     "#881337",
+  accent:       "#e11d48",
+  headerBg:     "linear-gradient(135deg, #4c0519 0%, #881337 100%)",
   red:          "#dc2626",
 };
 
@@ -47,7 +47,7 @@ const TK_BLOCKING_SCHEMES = [
 const TK_PLAY_TYPES = ["Run","Pass","Screen","Play Action","RPO","Option","QB Sneak","Kneel"];
 
 const TK_PLAY_CATEGORIES = [
-  { key:"Run",    label:"Run",    bg:"#dcfce7", color:"#14532d", border:"#86efac" },
+  { key:"Run",    label:"Run",    bg:"#fff7ed", color:"#c2410c", border:"#fed7aa" },
   { key:"Pass",   label:"Pass",   bg:"#dbeafe", color:"#1e40af", border:"#93c5fd" },
   { key:"Screen", label:"Screen", bg:"#ede9fe", color:"#5b21b6", border:"#c4b5fd" },
   { key:"RPO",    label:"RPO",    bg:"#fef3c7", color:"#92400e", border:"#fcd34d" },
@@ -102,7 +102,7 @@ const TK_DEFAULT_GAMES = [
 // ── Shared small components ───────────────────────────────────────────────────
 function TkBadge({ color = "gray", children }) {
   const map = {
-    green:  { background:"#dcfce7", color:"#14532d" },
+    green:  { background:"#ffe4e6", color:"#881337" },
     red:    { background:"#fee2e2", color:"#991b1b" },
     blue:   { background:"#dbeafe", color:"#1e40af" },
     yellow: { background:"#fef3c7", color:"#92400e" },
@@ -173,7 +173,7 @@ function TkStringList({ items, onAdd, onEdit, onDelete, placeholder }) {
                   onChange={e => setEditing(ed => ({ ...ed, value:e.target.value }))}
                   onKeyDown={e => { if(e.key==="Enter"){const v=editing.value.trim();if(v)onEdit(i,v);setEditing(null);} if(e.key==="Escape")setEditing(null); }} />
                 <button onClick={() => { const v=editing.value.trim();if(v)onEdit(i,v);setEditing(null); }}
-                  style={{ border:"none", background:"#d1fae5", color:"#065f46", borderRadius:6, padding:"3px 8px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
+                  style={{ border:"none", background:"#ffe4e6", color:"#881337", borderRadius:6, padding:"3px 8px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
                 <button onClick={() => setEditing(null)} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:15, padding:0 }}>×</button>
               </>
             ) : (
@@ -193,7 +193,7 @@ function TkStringList({ items, onAdd, onEdit, onDelete, placeholder }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── Trend chart metrics ───────────────────────────────────────────────────────
-const TK_CHART_COLORS = ["#15803d","#dc2626","#d97706","#7c3aed","#0284c7","#ec4899"];
+const TK_CHART_COLORS = ["#be123c","#d97706","#7c3aed","#0284c7","#ec4899","#059669"];
 
 const TK_OFF_METRICS = [
   { key:"yards",        label:"Total Yards" },
@@ -274,8 +274,8 @@ function TkTrendChart({ gameData, metrics }) {
         })}
       </svg>
       {tooltip && (
-        <div style={{ position:"absolute", left:`calc(${(tooltip.svgX/W*100).toFixed(1)}% + 10px)`, top:`calc(${(tooltip.svgY/H*100).toFixed(1)}% - 44px)`, background:"#14532d", color:"#fff", borderRadius:8, padding:"6px 12px", fontSize:12, pointerEvents:"none", whiteSpace:"nowrap", boxShadow:"0 4px 14px rgba(0,0,0,0.25)", zIndex:10 }}>
-          <div style={{ color:"#86efac", fontSize:11 }}>{tooltip.game}</div>
+        <div style={{ position:"absolute", left:`calc(${(tooltip.svgX/W*100).toFixed(1)}% + 10px)`, top:`calc(${(tooltip.svgY/H*100).toFixed(1)}% - 44px)`, background:"#881337", color:"#fff", borderRadius:8, padding:"6px 12px", fontSize:12, pointerEvents:"none", whiteSpace:"nowrap", boxShadow:"0 4px 14px rgba(0,0,0,0.25)", zIndex:10 }}>
+          <div style={{ color:"#fda4af", fontSize:11 }}>{tooltip.game}</div>
           <div style={{ marginTop:2 }}><span style={{ color:tooltip.color, fontWeight:700 }}>{tooltip.label}:</span> <span style={{ fontWeight:800 }}>{typeof tooltip.val==="number"&&!Number.isInteger(tooltip.val)?tooltip.val.toFixed(1):tooltip.val}</span></div>
         </div>
       )}
@@ -947,8 +947,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                           </span>
                           <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
                             <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
-                              background: p.outcome?.includes("TD") ? "#dcfce7" : p.outcome?.includes("Loss") || p.outcome?.includes("INT") || p.outcome?.includes("Fumble") ? "#fee2e2" : "#f3f4f6",
-                              color: p.outcome?.includes("TD") ? "#14532d" : p.outcome?.includes("Loss") || p.outcome?.includes("INT") || p.outcome?.includes("Fumble") ? "#991b1b" : "#374151",
+                              background: p.outcome?.includes("TD") ? "#ffe4e6" : p.outcome?.includes("Loss") || p.outcome?.includes("INT") || p.outcome?.includes("Fumble") ? "#fee2e2" : "#f3f4f6",
+                              color: p.outcome?.includes("TD") ? "#881337" : p.outcome?.includes("Loss") || p.outcome?.includes("INT") || p.outcome?.includes("Fumble") ? "#991b1b" : "#374151",
                             }}>{p.outcome}</span>
                             <button onClick={() => deletePlay(p.id)} style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:16, padding:0 }}>×</button>
                           </div>
@@ -1260,8 +1260,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                         </div>
                         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
                           <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:99,
-                            background: p.outcome?.includes("TD") ? "#dcfce7" : p.outcome?.includes("Loss")||p.outcome?.includes("INT")||p.outcome?.includes("Fumble") ? "#fee2e2" : "#f3f4f6",
-                            color: p.outcome?.includes("TD") ? "#14532d" : p.outcome?.includes("Loss")||p.outcome?.includes("INT")||p.outcome?.includes("Fumble") ? "#991b1b" : "#374151",
+                            background: p.outcome?.includes("TD") ? "#ffe4e6" : p.outcome?.includes("Loss")||p.outcome?.includes("INT")||p.outcome?.includes("Fumble") ? "#fee2e2" : "#f3f4f6",
+                            color: p.outcome?.includes("TD") ? "#881337" : p.outcome?.includes("Loss")||p.outcome?.includes("INT")||p.outcome?.includes("Fumble") ? "#991b1b" : "#374151",
                           }}>{p.outcome}</span>
                           <span style={{ fontSize:12, fontWeight:700, color:(Number(p.yardsGained)||0)>0?TK.primary:(Number(p.yardsGained)||0)<0?TK.red:"#6b7280" }}>
                             {(Number(p.yardsGained)||0)>0?`+${p.yardsGained}`:p.yardsGained||"0"} yds
@@ -1660,7 +1660,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                           onChange={e => saveGameScore(game, { ...score, them:e.target.value===""?null:Number(e.target.value) })}
                           style={{ width:52, padding:"5px 8px", borderRadius:6, border:"1px solid rgba(255,255,255,0.3)", background:"rgba(255,255,255,0.12)", color:"#fff", fontFamily:"inherit", fontWeight:800, fontSize:18, textAlign:"center", outline:"none" }} />
                         {winStatus && (
-                          <span style={{ padding:"3px 10px", borderRadius:999, fontSize:13, fontWeight:800, background: winStatus==="W"?"#dcfce7":winStatus==="L"?"#fee2e2":"#f3f4f6", color: winStatus==="W"?"#14532d":winStatus==="L"?"#991b1b":"#374151" }}>{winStatus}</span>
+                          <span style={{ padding:"3px 10px", borderRadius:999, fontSize:13, fontWeight:800, background: winStatus==="W"?"#ffe4e6":winStatus==="L"?"#fee2e2":"#f3f4f6", color: winStatus==="W"?"#881337":winStatus==="L"?"#991b1b":"#374151" }}>{winStatus}</span>
                         )}
                       </div>
                     </div>
@@ -1673,7 +1673,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                       {/* Offense + Defense stat rows */}
                       <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:14 }}>
                         {gOffPlays.length > 0 && (
-                          <div style={{ background:"#f0fdf4", borderRadius:12, padding:"14px 16px", border:"1px solid #bbf7d0" }}>
+                          <div style={{ background:"#fff1f2", borderRadius:12, padding:"14px 16px", border:"1px solid #fecdd3" }}>
                             <div style={{ fontSize:11, fontWeight:800, color:TK.primary, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>⚔️ Offense</div>
                             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:8, textAlign:"center" }}>
                               {[
@@ -1720,7 +1720,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                           <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Top Performers</div>
                           <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
                             {topRusher && (
-                              <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:10, padding:"9px 14px" }}>
+                              <div style={{ background:"#fff1f2", border:"1px solid #fecdd3", borderRadius:10, padding:"9px 14px" }}>
                                 <div style={{ fontSize:10, color:TK.primary, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, marginBottom:2 }}>🏃 Top Rusher</div>
                                 <div style={{ fontSize:14, fontWeight:800, color:"#111827" }}>{topRusher.name}</div>
                                 <div style={{ fontSize:12, color:"#6b7280" }}>{rushMap[topRusherId]} yds · {gOffPlays.filter(p=>String(p.carrier)===String(topRusherId)).length} car</div>
@@ -1843,7 +1843,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                           { label:"Rec Yards",  val:offStats.recYards||"—" },
                           { label:"Rec TDs",    val:offStats.recTDs||"—" },
                         ].map(s => (
-                          <div key={s.label} style={{ textAlign:"center", padding:"10px 4px", borderRadius:10, background:"#f0fdf4" }}>
+                          <div key={s.label} style={{ textAlign:"center", padding:"10px 4px", borderRadius:10, background:"#fff1f2" }}>
                             <div style={{ fontSize:20, fontWeight:900, color:TK.primaryDark }}>{s.val}</div>
                             <div style={{ fontSize:10, color:"#6b7280", fontWeight:600, textTransform:"uppercase", letterSpacing:0.4, marginTop:2 }}>{s.label}</div>
                           </div>
@@ -1880,7 +1880,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
                       <div style={{ fontSize:14, fontWeight:800, color:"#374151", marginBottom:10 }}>Last Game — {lastGame}</div>
                       <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                        {lgOff?.carries > 0 && <span style={{ fontSize:13, background:"#f0fdf4", color:TK.primaryDark, fontWeight:700, padding:"6px 12px", borderRadius:8 }}>🏃 {lgOff.carries} car · {lgOff.rushYards} rush yds{lgOff.rushTDs>0?` · ${lgOff.rushTDs} TD`:""}</span>}
+                        {lgOff?.carries > 0 && <span style={{ fontSize:13, background:"#fff1f2", color:TK.primaryDark, fontWeight:700, padding:"6px 12px", borderRadius:8 }}>🏃 {lgOff.carries} car · {lgOff.rushYards} rush yds{lgOff.rushTDs>0?` · ${lgOff.rushTDs} TD`:""}</span>}
                         {lgOff?.targets > 0 && <span style={{ fontSize:13, background:"#eff6ff", color:"#1e40af", fontWeight:700, padding:"6px 12px", borderRadius:8 }}>📡 {lgOff.receptions}/{lgOff.targets} rec · {lgOff.recYards} yds{lgOff.recTDs>0?` · ${lgOff.recTDs} TD`:""}</span>}
                         {lgDef?.tackles > 0 && <span style={{ fontSize:13, background:"#fef2f2", color:"#991b1b", fontWeight:700, padding:"6px 12px", borderRadius:8 }}>🛡 {lgDef.tackles} tkl{lgDef.assists>0?` · ${lgDef.assists} ast`:""}{lgDef.sacks>0?` · ${lgDef.sacks} sack`:""}{lgDef.tfls>0?` · ${lgDef.tfls} TFL`:""}{lgDef.ints>0?` · ${lgDef.ints} INT`:""}</span>}
                       </div>
@@ -1931,7 +1931,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                             </div>
                           </div>
                           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                            {hasOff && offTDs > 0 && <span style={{ fontSize:11, background:"#f0fdf4", color:TK.primaryDark, fontWeight:700, padding:"2px 8px", borderRadius:6 }}>{offTDs} TD{offTDs!==1?"s":""}</span>}
+                            {hasOff && offTDs > 0 && <span style={{ fontSize:11, background:"#fff1f2", color:TK.primaryDark, fontWeight:700, padding:"2px 8px", borderRadius:6 }}>{offTDs} TD{offTDs!==1?"s":""}</span>}
                             {hasDef && tklCnt > 0 && <span style={{ fontSize:11, background:"#fef2f2", color:"#991b1b", fontWeight:700, padding:"2px 8px", borderRadius:6 }}>{tklCnt} Tkl</span>}
                             {hasNote && <span style={{ fontSize:11, background:"#fef9c3", color:"#854d0e", fontWeight:700, padding:"2px 8px", borderRadius:6 }}>📝 Notes</span>}
                             {!hasOff && !hasDef && <span style={{ fontSize:11, color:"#d1d5db" }}>No plays yet</span>}
@@ -2025,7 +2025,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                             </div>
                             <div style={{ display:"flex", gap:6 }}>
                               <button onClick={() => { if(editingPlayer.name.trim()) savePlayers(players.map(p=>p.id===pl.id?{...p,...editingPlayer}:p)); setEditingPlayer(null); }}
-                                style={{ border:"none", background:"#d1fae5", color:"#065f46", borderRadius:6, padding:"5px 12px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
+                                style={{ border:"none", background:"#ffe4e6", color:"#881337", borderRadius:6, padding:"5px 12px", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Save</button>
                               <button onClick={() => setEditingPlayer(null)}
                                 style={{ border:"none", background:"#f3f4f6", color:"#6b7280", borderRadius:6, padding:"5px 10px", cursor:"pointer", fontFamily:"inherit", fontSize:12 }}>Cancel</button>
                             </div>
