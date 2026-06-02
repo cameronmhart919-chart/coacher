@@ -4,10 +4,12 @@ import {
   getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, setDoc,
 } from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // ── Re-use the Firebase app already initialised by football-coach.jsx ─────────
-const getDb   = () => getFirestore(getApps()[0]);
-const getAuthInst = () => getAuth(getApps()[0]);
+const getDb      = () => getFirestore(getApps()[0]);
+const getAuthInst= () => getAuth(getApps()[0]);
+const getStore   = () => getStorage(getApps()[0]);
 
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 const tkBase   = (id) => `data/${id}`;
@@ -308,6 +310,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [selectedPlayer, setSelectedPlayer] = useState(null); // for report card detail
   const [offenseTrendMetrics, setOffenseTrendMetrics] = useState(["yards"]);
   const [defenseTrendMetrics, setDefenseTrendMetrics] = useState(["yardsAllowed"]);
+  const [logoUrl,          setLogoUrl]          = useState(null);
+  const [logoUploading,    setLogoUploading]    = useState(false);
   const [newPlayCode,      setNewPlayCode]      = useState(""); // fixes useState-in-render bug
   const [newPlayCodeCat,   setNewPlayCodeCat]   = useState("Run");
   const [newBlockingScheme,    setNewBlockingScheme]    = useState("");
@@ -370,6 +374,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     listenDoc("tackle_config/playCodes",      snap => setPlayCodes(snap.codes || []));
     listenDoc("tackle_config/gameScores",     snap => setGameScores(snap || {}));
     listenDoc("tackle_config/playerNotes",    snap => setPlayerNotes(snap.notes || {}));
+    listenDoc("tackle_config/settings",       snap => setLogoUrl(snap.logoUrl || null));
     return () => unsubs.forEach(u => u());
   }, [instanceId]);
 
@@ -389,6 +394,30 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const savePlayCodes   = (v) => saveDoc("tackle_config/playCodes",    { codes:v });
   const saveGameScore   = (game, score) => saveDoc("tackle_config/gameScores", { [game]:score }, { merge:true });
   const savePlayerNote  = (pid, note) => saveDoc("tackle_config/playerNotes", { notes:{ ...playerNotes, [pid]:note } });
+
+  const handleLogoUpload = async (file) => {
+    setLogoUploading(true);
+    try {
+      const storageRef = ref(getStore(), `instances/${instanceId}/tackle_logo`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setLogoUrl(url);
+      await setDoc(doc(db, base, "tackle_config/settings"), { logoUrl: url }, { merge: true });
+    } catch (e) {
+      alert("Logo upload failed: " + e.message);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    try {
+      const storageRef = ref(getStore(), `instances/${instanceId}/tackle_logo`);
+      await deleteObject(storageRef);
+    } catch (_) { /* file may not exist */ }
+    setLogoUrl(null);
+    await setDoc(doc(db, base, "tackle_config/settings"), { logoUrl: null }, { merge: true });
+  };
 
   // ── Offensive form ───────────────────────────────────────────────────────────
   const initOffForm = () => ({
@@ -2076,6 +2105,30 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     onEdit={(i, v) => saveTags(tags.map((x,j)=>j===i?v:x))}
                     onDelete={i => saveTags(tags.filter((_,j)=>j!==i))}
                     placeholder="e.g. Red Zone, 2-Minute" />
+                </div>
+
+                {/* Team Logo */}
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Team Logo</div>
+                  <div style={{ fontSize:12, color:"#6b7280", marginBottom:16 }}>Appears in the header and game summaries.</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+                    {logoUrl && (
+                      <img src={logoUrl} alt="Team logo" style={{ width:80, height:80, objectFit:"cover", borderRadius:12, border:"1.5px solid #e5e7eb" }} />
+                    )}
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <label style={{ padding:"9px 18px", background:TK.buttonBg, color:"#fff", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                        {logoUploading ? "Uploading…" : logoUrl ? "Replace Logo" : "Upload Logo"}
+                        <input type="file" accept="image/*" style={{ display:"none" }} disabled={logoUploading}
+                          onChange={e => { const file = e.target.files[0]; if (file) handleLogoUpload(file); e.target.value = ""; }} />
+                      </label>
+                      {logoUrl && (
+                        <button onClick={() => { if (window.confirm("Remove team logo?")) handleLogoDelete(); }}
+                          style={{ padding:"9px 18px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                          Remove Logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </>
             )}
