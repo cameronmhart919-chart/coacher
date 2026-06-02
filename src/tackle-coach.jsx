@@ -821,7 +821,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                         {TK_PLAY_TYPES.map(t => <option key={t}>{t}</option>)}
                       </select>
                     </div>
-                    <div><label style={lbl}>Play Code</label>
+                    <div><label style={lbl}>Play</label>
                       <select style={mInp} value={form.playCode} onChange={e => f("playCode", e.target.value)}>
                         <option value="">— None —</option>
                         {TK_PLAY_CATEGORIES.map(cat => {
@@ -2159,7 +2159,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     placeholder="e.g. First Down, Fumble" />
                 </div>
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Play Codes</div>
+                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Plays</div>
                   <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Assign each play call to a category so they group together in the logger.</div>
 
                   {/* Add form */}
@@ -2206,7 +2206,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     </div>
                   )}
                   {playCodes.length === 0 && (
-                    <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No play codes yet. Add one above.</div>
+                    <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No plays yet. Add one above.</div>
                   )}
                 </div>
               </>
