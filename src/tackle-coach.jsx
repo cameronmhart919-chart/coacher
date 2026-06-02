@@ -678,7 +678,11 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
       <div style={{ background:TK.headerBg, boxShadow:"0 4px 24px rgba(0,0,0,0.25)" }}>
         <div style={{ maxWidth: isMobile ? undefined : 980, margin:"0 auto", padding: isMobile ? "14px 16px 0" : "20px 24px 0" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom: isMobile ? 12 : 18 }}>
-            <div style={{ width:38, height:38, borderRadius:10, background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>🏈</div>
+            <div style={{ width:38, height:38, borderRadius:10, background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, overflow:"hidden" }}>
+              {logoUrl
+                ? <img src={logoUrl} alt="logo" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                : "🏈"}
+            </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize: isMobile ? 16 : 20, fontWeight:900, color:"#fff", letterSpacing:-0.5 }}>Coacher <span style={{ fontSize:12, fontWeight:600, background:"rgba(255,255,255,0.15)", padding:"2px 8px", borderRadius:999, marginLeft:6, verticalAlign:"middle" }}>Tackle</span></div>
               {!isMobile && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginTop:1 }}>{userProfile?.name || authUser?.email} · {userProfile?.role === "admin" ? "Admin" : "Coach"}</div>}
