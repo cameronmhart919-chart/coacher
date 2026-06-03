@@ -56,6 +56,13 @@ function blockTPath(pts) {
   return `M${x1},${y1} L${x2},${y2}`;
 }
 
+// Translate every coordinate in an SVG path string by (dx, dy)
+function translatePath(d, dx, dy) {
+  return d.replace(/([ML])(-?[\d.]+),(-?[\d.]+)/g,
+    (_, cmd, x, y) => `${cmd}${(parseFloat(x)+dx).toFixed(1)},${(parseFloat(y)+dy).toFixed(1)}`
+  );
+}
+
 function getSvgPos(svgEl, e, snap = 5) {
   const r = svgEl.getBoundingClientRect();
   const raw = {
@@ -119,7 +126,7 @@ function FieldSVG({
   selId, tool, dragging,
   onSvgMouseDown, onSvgMouseMove, onSvgMouseUp,
   onSvgClick, onSvgDblClick,
-  onPlayerMouseDown, onElementClick,
+  onPlayerMouseDown, onElementMouseDown, onElementClick,
   tk,
 }) {
   const PR = 15;  // player circle radius
@@ -162,9 +169,11 @@ function FieldSVG({
       const dash = el.type === "motion" ? "8,5" : undefined;
       const ah   = arrowHeadPts(el.points);
       return (
-        <g key={el.id} style={selGlow}
-          onClick={e => { e.stopPropagation(); onElementClick(el.id); }}
-          style={{ cursor:"pointer", ...selGlow }}>
+        <g key={el.id} style={{ cursor: tool==="select" ? "grab" : "crosshair", ...selGlow }}
+          onMouseDown={e => onElementMouseDown(e, el)}
+          onClick={e => { e.stopPropagation(); onElementClick(el.id); }}>
+          {/* fat invisible hit area */}
+          <polyline points={pts2poly(el.points)} stroke="transparent" strokeWidth={12} fill="none" />
           {sel && <polyline points={pts2poly(el.points)} stroke="#facc15" strokeWidth={6} fill="none" opacity={0.35} />}
           <polyline points={pts2poly(el.points)} stroke={clr} strokeWidth={2} fill="none"
             strokeDasharray={dash} strokeLinecap="round" strokeLinejoin="round" />
@@ -181,8 +190,10 @@ function FieldSVG({
       const clr  = "#7c3aed";
       const tpath = blockTPath(el.points);
       return (
-        <g key={el.id} style={{ cursor:"pointer", ...selGlow }}
+        <g key={el.id} style={{ cursor: tool==="select" ? "grab" : "crosshair", ...selGlow }}
+          onMouseDown={e => onElementMouseDown(e, el)}
           onClick={e => { e.stopPropagation(); onElementClick(el.id); }}>
+          <polyline points={pts2poly(el.points)} stroke="transparent" strokeWidth={12} fill="none" />
           {sel && <polyline points={pts2poly(el.points)} stroke="#facc15" strokeWidth={6} fill="none" opacity={0.35} />}
           <polyline points={pts2poly(el.points)} stroke={clr} strokeWidth={2} fill="none"
             strokeLinecap="round" strokeLinejoin="round" />
@@ -194,8 +205,10 @@ function FieldSVG({
     if (el.type === "freehand") {
       if (!el.pathData) return null;
       return (
-        <g key={el.id} style={{ cursor:"pointer", ...selGlow }}
+        <g key={el.id} style={{ cursor: tool==="select" ? "grab" : "crosshair", ...selGlow }}
+          onMouseDown={e => onElementMouseDown(e, el)}
           onClick={e => { e.stopPropagation(); onElementClick(el.id); }}>
+          <path d={el.pathData} stroke="transparent" strokeWidth={12} fill="none" />
           {sel && <path d={el.pathData} stroke="#facc15" strokeWidth={6} fill="none" opacity={0.35} />}
           <path d={el.pathData} stroke="#111827" strokeWidth={2} fill="none"
             strokeLinecap="round" strokeLinejoin="round" />
@@ -351,16 +364,24 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   const [fhPoints,  setFhPoints]  = useState([]);
   const [fhDrawing, setFhDrawing] = useState(false);
 
+  // ── Undo / redo ─────────────────────────────────────────────────────────────
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+
   // ── Dragging ────────────────────────────────────────────────────────────────
-  const [dragging, setDragging] = useState(null);  // { id, ox, oy }
-  const didDragRef = useRef(false);
+  // type:"player" → { id, type, ox, oy }
+  // type:"pts"    → { id, type, origPts, startX, startY }   (route/motion/block)
+  // type:"fh"     → { id, type, origPath, startX, startY }  (freehand)
+  const [dragging, setDragging] = useState(null);
+  const didDragRef        = useRef(false);
+  const preDragSnapshot   = useRef(null);  // snapshot taken at drag-start, committed on drag-end
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
-  const [openFolders,   setOpenFolders]   = useState({});
-  const [newFolderName, setNewFolderName] = useState("");
-  const [addingFolder,  setAddingFolder]  = useState(false);
-  const [newPlayName,   setNewPlayName]   = useState("");
-  const [addingPlayFor, setAddingPlayFor] = useState(null); // folderId
+  const [openFolders,      setOpenFolders]      = useState({});
+  const [newFolderName,    setNewFolderName]    = useState("");
+  const [addingFolderUnder,setAddingFolderUnder]= useState(null); // "root" | folderId | null
+  const [newPlayName,      setNewPlayName]      = useState("");
+  const [addingPlayFor,    setAddingPlayFor]    = useState(null);
 
   const svgRef = useRef(null);
 
@@ -391,10 +412,45 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
     setIsDirty(false);
   };
 
+  // ── Undo helpers ────────────────────────────────────────────────────────────
+  const pushUndo = (snap) => {
+    setUndoStack(u => [...u.slice(-29), snap]);
+    setRedoStack([]);
+  };
+  const undo = () => {
+    if (!undoStack.length) return;
+    const snap = undoStack[undoStack.length - 1];
+    setRedoStack(r => [...r, elements]);
+    setUndoStack(u => u.slice(0, -1));
+    setElements(snap);
+    setIsDirty(true);
+  };
+  const redo = () => {
+    if (!redoStack.length) return;
+    const snap = redoStack[redoStack.length - 1];
+    setUndoStack(u => [...u, elements]);
+    setRedoStack(r => r.slice(0, -1));
+    setElements(snap);
+    setIsDirty(true);
+  };
+
   // ── Element helpers ─────────────────────────────────────────────────────────
-  const addEl = el => { setElements(p => [...p, { id:uid(), ...el }]); setIsDirty(true); };
-  const updateEl = (id, patch) => { setElements(p => p.map(e => e.id===id ? {...e,...patch} : e)); setIsDirty(true); };
-  const deleteEl = id => { setElements(p => p.filter(e => e.id!==id)); setIsDirty(true); if (selId===id) setSelId(null); };
+  const addEl = el => {
+    pushUndo(elements);
+    setElements(p => [...p, { id:uid(), ...el }]);
+    setIsDirty(true);
+  };
+  // updateEl does NOT push undo — caller is responsible (e.g. drag start)
+  const updateEl = (id, patch) => {
+    setElements(p => p.map(e => e.id===id ? {...e,...patch} : e));
+    setIsDirty(true);
+  };
+  const deleteEl = id => {
+    pushUndo(elements);
+    setElements(p => p.filter(e => e.id!==id));
+    setIsDirty(true);
+    if (selId===id) setSelId(null);
+  };
 
   // ── Keyboard ────────────────────────────────────────────────────────────────
   const handleKeyDown = useCallback(e => {
@@ -402,7 +458,9 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
     if ((e.key==="Delete"||e.key==="Backspace") && selId) { e.preventDefault(); deleteEl(selId); }
     if (e.key==="Escape") { setDraftPts([]); setPendingPos(null); setTool("select"); }
     if (e.key==="s" && (e.ctrlKey||e.metaKey)) { e.preventDefault(); handleSave(); }
-  }, [selId, handleSave]);
+    if (e.key==="z" && (e.ctrlKey||e.metaKey)) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    if (e.key==="y" && (e.ctrlKey||e.metaKey)) { e.preventDefault(); redo(); }
+  }, [selId, handleSave, undo, redo]);
 
   // ── SVG coord helper ────────────────────────────────────────────────────────
   const svgPos = (e, noSnap=false) => svgRef.current ? getSvgPos(svgRef.current, e, noSnap?0:5) : {x:0,y:0};
@@ -424,7 +482,15 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
     }
     if (dragging) {
       didDragRef.current = true;
-      updateEl(dragging.id, { x: pos.x - dragging.ox, y: pos.y - dragging.oy });
+      if (dragging.type === "player") {
+        updateEl(dragging.id, { x:pos.x - dragging.ox, y:pos.y - dragging.oy });
+      } else if (dragging.type === "pts") {
+        const dx = pos.x - dragging.startX, dy = pos.y - dragging.startY;
+        updateEl(dragging.id, { points: dragging.origPts.map(p => ({ x:p.x+dx, y:p.y+dy })) });
+      } else if (dragging.type === "fh") {
+        const dx = pos.x - dragging.startX, dy = pos.y - dragging.startY;
+        updateEl(dragging.id, { pathData: translatePath(dragging.origPath, dx, dy) });
+      }
     }
   };
 
@@ -437,6 +503,11 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
       setFhDrawing(false);
       setFhPoints([]);
     }
+    // Commit undo snapshot only if an actual drag occurred
+    if (dragging && didDragRef.current && preDragSnapshot.current) {
+      pushUndo(preDragSnapshot.current);
+    }
+    preDragSnapshot.current = null;
     setDragging(null);
   };
 
@@ -476,7 +547,22 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
     didDragRef.current = false;
     setSelId(el.id);
     const pos = svgPos(e);
-    setDragging({ id:el.id, ox:pos.x-el.x, oy:pos.y-el.y });
+    preDragSnapshot.current = elements;  // snapshot before drag
+    setDragging({ id:el.id, type:"player", ox:pos.x-el.x, oy:pos.y-el.y });
+  };
+
+  const handleElementMouseDown = (e, el) => {
+    if (tool!=="select") return;
+    e.stopPropagation();
+    didDragRef.current = false;
+    setSelId(el.id);
+    const pos = svgPos(e);
+    preDragSnapshot.current = elements;  // snapshot before drag
+    if (el.type==="route"||el.type==="motion"||el.type==="block") {
+      setDragging({ id:el.id, type:"pts", origPts:[...el.points], startX:pos.x, startY:pos.y });
+    } else if (el.type==="freehand") {
+      setDragging({ id:el.id, type:"fh", origPath:el.pathData, startX:pos.x, startY:pos.y });
+    }
   };
 
   const handleElementClick = id => {
@@ -491,22 +577,43 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   };
 
   // ── Folder / play CRUD ──────────────────────────────────────────────────────
-  const createFolder = async () => {
+  const createFolder = async (parentId = null) => {
     if (!newFolderName.trim()) return;
     const ref = await addDoc(collection(db, base, "tackle_pb_folders"), {
-      name:newFolderName.trim(), section, createdAt:new Date().toISOString(),
+      name:newFolderName.trim(), section, parentId,
+      createdAt:new Date().toISOString(),
     });
-    setNewFolderName(""); setAddingFolder(false);
-    setOpenFolders(o => ({ ...o, [ref.id]:true }));
+    setNewFolderName(""); setAddingFolderUnder(null);
+    setOpenFolders(o => {
+      const next = { ...o, [ref.id]:true };
+      if (parentId) next[parentId] = true;
+      return next;
+    });
     setFolderId(ref.id);
   };
 
   const deleteFolder = async id => {
-    if (!window.confirm("Delete folder and all plays inside?")) return;
-    plays.filter(p => p.folderId===id)
-         .forEach(p => deleteDoc(doc(db, base, "tackle_pb_plays", p.id)));
-    await deleteDoc(doc(db, base, "tackle_pb_folders", id));
+    if (!window.confirm("Delete folder and all its contents?")) return;
+    const recurse = async fid => {
+      plays.filter(p => p.folderId===fid)
+           .forEach(p => deleteDoc(doc(db, base, "tackle_pb_plays", p.id)));
+      const children = folders.filter(f => f.parentId===fid);
+      for (const c of children) await recurse(c.id);
+      await deleteDoc(doc(db, base, "tackle_pb_folders", fid));
+    };
+    await recurse(id);
     if (folderId===id) { setFolderId(null); setPlayId(null); }
+  };
+
+  const duplicatePlay = async (play) => {
+    const { id: _id, createdAt: _c, ...rest } = play;
+    const ref = await addDoc(collection(db, base, "tackle_pb_plays"), {
+      ...rest,
+      name: play.name + " (copy)",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    setPlayId(ref.id);
   };
 
   const createPlay = async forFolderId => {
@@ -554,9 +661,110 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   };
 
   // ── Derived ─────────────────────────────────────────────────────────────────
-  const sectionFolders = folders.filter(f => f.section === section);
   const selectedPlayer = elements.find(e => e.id===selId && e.type==="player");
   const currentPlay    = plays.find(p => p.id===playId);
+  const rootFolders    = folders.filter(f => f.section===section && !f.parentId);
+
+  // ── Recursive folder renderer ─────────────────────────────────────────────
+  const renderFolder = (folder, depth=0) => {
+    const isOpen   = !!openFolders[folder.id];
+    const fps      = plays.filter(p => p.folderId===folder.id);
+    const children = folders.filter(f => f.parentId===folder.id);
+    const pl       = depth * 14; // left padding per depth level
+
+    return (
+      <div key={folder.id}>
+        {/* Folder row */}
+        <div style={{ display:"flex", alignItems:"center",
+          padding:`5px ${10}px 5px ${10+pl}px`, cursor:"pointer",
+          background:folderId===folder.id ? "#f9fafb" : "none" }}
+          onClick={() => {
+            setOpenFolders(o => ({ ...o, [folder.id]:!o[folder.id] }));
+            setFolderId(folder.id);
+          }}>
+          <span style={{ fontSize:10, color:"#9ca3af", width:12, flexShrink:0 }}>
+            {isOpen ? "▾" : "▸"}
+          </span>
+          <span style={{ fontSize:12, fontWeight:700, color:"#374151", flex:1,
+            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            📁 {folder.name}
+          </span>
+          <span style={{ fontSize:10, color:"#d1d5db", marginRight:2 }}>({fps.length})</span>
+          <button title="New subfolder"
+            onClick={e => { e.stopPropagation(); setAddingFolderUnder(folder.id); setNewFolderName(""); }}
+            style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:11, padding:"0 2px", lineHeight:1 }}>📁+</button>
+          <button onClick={e => { e.stopPropagation(); deleteFolder(folder.id); }}
+            style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:14, padding:"0 2px", lineHeight:1 }}>×</button>
+        </div>
+
+        {isOpen && (
+          <div>
+            {/* Subfolder input */}
+            {addingFolderUnder===folder.id && (
+              <div style={{ display:"flex", gap:4, padding:`4px 10px 4px ${26+pl}px` }}>
+                <input autoFocus style={{ ...inp, flex:1, padding:"4px 7px", fontSize:12 }}
+                  placeholder="Subfolder name" value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => {
+                    if(e.key==="Enter") createFolder(folder.id);
+                    if(e.key==="Escape"){ setAddingFolderUnder(null); setNewFolderName(""); }
+                  }} />
+                <button onClick={() => createFolder(folder.id)}
+                  style={{ background:tk.buttonBg, color:"#fff", border:"none", borderRadius:4,
+                    padding:"4px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>+</button>
+              </div>
+            )}
+
+            {/* Child folders (recursive) */}
+            {children.map(c => renderFolder(c, depth+1))}
+
+            {/* Plays */}
+            {fps.map(p => (
+              <div key={p.id} style={{ display:"flex", alignItems:"center",
+                padding:`5px 8px 5px ${26+pl}px`, cursor:"pointer",
+                background:playId===p.id ? tk.primaryLight : "none",
+                borderLeft:`3px solid ${playId===p.id ? tk.primary : "transparent"}` }}
+                onClick={() => switchPlay(p.id)}>
+                <span style={{ fontSize:12, flex:1, fontWeight:playId===p.id?700:400,
+                  color:playId===p.id ? tk.primaryDark : "#374151",
+                  whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                  ▶ {p.name}
+                </span>
+                <button title="Duplicate play"
+                  onClick={e => { e.stopPropagation(); duplicatePlay(p); }}
+                  style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:12, padding:"0 2px", lineHeight:1 }}>⎘</button>
+                <button onClick={e => { e.stopPropagation(); deletePlay(p.id); }}
+                  style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:14, padding:"0 2px", lineHeight:1 }}>×</button>
+              </div>
+            ))}
+
+            {/* Add play */}
+            {addingPlayFor===folder.id ? (
+              <div style={{ display:"flex", gap:4, padding:`4px 8px 4px ${26+pl}px` }}>
+                <input autoFocus style={{ ...inp, flex:1, padding:"4px 7px", fontSize:12 }}
+                  placeholder="Play name" value={newPlayName}
+                  onChange={e => setNewPlayName(e.target.value)}
+                  onKeyDown={e => {
+                    if(e.key==="Enter") createPlay(folder.id);
+                    if(e.key==="Escape"){ setAddingPlayFor(null); setNewPlayName(""); }
+                  }} />
+                <button onClick={() => createPlay(folder.id)}
+                  style={{ background:tk.buttonBg, color:"#fff", border:"none", borderRadius:4,
+                    padding:"4px 9px", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>+</button>
+              </div>
+            ) : (
+              <button onClick={() => { setAddingPlayFor(folder.id); setFolderId(folder.id); }}
+                style={{ width:"100%", padding:`5px 8px 5px ${26+pl}px`, border:"none",
+                  background:"none", textAlign:"left", cursor:"pointer",
+                  fontFamily:"inherit", fontSize:12, color:"#9ca3af" }}>
+                + Add Play
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const TOOL_BTNS = [
     { key:"select",   label:"↖ Select",   hint:"Select & drag" },
@@ -601,110 +809,32 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
 
         {/* Folder tree */}
         <div style={{ flex:1, overflowY:"auto", padding:"8px 0" }}>
-          {sectionFolders.length===0 && (
+          {rootFolders.length===0 && (
             <div style={{ padding:"20px 12px", fontSize:12, color:"#d1d5db", textAlign:"center" }}>
               No folders yet
             </div>
           )}
-          {sectionFolders.map(folder => {
-            const isOpen = !!openFolders[folder.id];
-            const fps    = plays.filter(p => p.folderId===folder.id);
-            return (
-              <div key={folder.id}>
-                {/* Folder row */}
-                <div style={{ display:"flex", alignItems:"center", padding:"6px 10px",
-                  cursor:"pointer", background: folderId===folder.id ? "#f9fafb" : "none" }}
-                  onClick={() => {
-                    setOpenFolders(o => ({ ...o, [folder.id]:!o[folder.id] }));
-                    setFolderId(folder.id);
-                  }}>
-                  <span style={{ fontSize:10, color:"#9ca3af", width:12, flexShrink:0 }}>
-                    {isOpen ? "▾" : "▸"}
-                  </span>
-                  <span style={{ fontSize:13, fontWeight:700, color:"#374151", flex:1,
-                    whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                    📁 {folder.name}
-                  </span>
-                  <span style={{ fontSize:10, color:"#d1d5db", marginRight:2 }}>
-                    ({fps.length})
-                  </span>
-                  <button
-                    onClick={e => { e.stopPropagation(); deleteFolder(folder.id); }}
-                    style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer",
-                      fontSize:14, padding:"0 2px", lineHeight:1 }}>×</button>
-                </div>
-
-                {/* Plays inside folder */}
-                {isOpen && (
-                  <div style={{ paddingLeft:22 }}>
-                    {fps.map(p => (
-                      <div key={p.id}
-                        style={{ display:"flex", alignItems:"center", padding:"5px 10px",
-                          cursor:"pointer",
-                          background: playId===p.id ? tk.primaryLight : "none",
-                          borderLeft: `3px solid ${playId===p.id ? tk.primary : "transparent"}` }}
-                        onClick={() => switchPlay(p.id)}>
-                        <span style={{ fontSize:12, flex:1, fontWeight:playId===p.id?700:400,
-                          color:playId===p.id ? tk.primaryDark : "#374151",
-                          whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                          ▶ {p.name}
-                        </span>
-                        <button
-                          onClick={e => { e.stopPropagation(); deletePlay(p.id); }}
-                          style={{ border:"none", background:"none", color:"#d1d5db",
-                            cursor:"pointer", fontSize:14, padding:"0 2px", lineHeight:1 }}>×</button>
-                      </div>
-                    ))}
-
-                    {/* Add play row */}
-                    {addingPlayFor===folder.id ? (
-                      <div style={{ display:"flex", gap:4, padding:"4px 10px" }}>
-                        <input autoFocus style={{ ...inp, flex:1, padding:"4px 7px", fontSize:12 }}
-                          placeholder="Play name" value={newPlayName}
-                          onChange={e => setNewPlayName(e.target.value)}
-                          onKeyDown={e => {
-                            if(e.key==="Enter") createPlay(folder.id);
-                            if(e.key==="Escape") { setAddingPlayFor(null); setNewPlayName(""); }
-                          }} />
-                        <button onClick={() => createPlay(folder.id)}
-                          style={{ border:"none", background:tk.buttonBg, color:"#fff",
-                            borderRadius:4, padding:"4px 9px", fontSize:11,
-                            cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>+</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { setAddingPlayFor(folder.id); setFolderId(folder.id); }}
-                        style={{ width:"100%", padding:"5px 10px", border:"none", background:"none",
-                          textAlign:"left", cursor:"pointer", fontFamily:"inherit",
-                          fontSize:12, color:"#9ca3af" }}>
-                        + Add Play
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {rootFolders.map(f => renderFolder(f, 0))}
         </div>
 
-        {/* New folder */}
+        {/* New root folder */}
         <div style={{ padding:10, borderTop:"1.5px solid #e5e7eb", flexShrink:0 }}>
-          {addingFolder ? (
+          {addingFolderUnder==="root" ? (
             <div style={{ display:"flex", gap:6 }}>
               <input autoFocus style={{ ...inp, flex:1, padding:"6px 8px", fontSize:12 }}
                 placeholder="Folder name" value={newFolderName}
                 onChange={e => setNewFolderName(e.target.value)}
                 onKeyDown={e => {
-                  if(e.key==="Enter") createFolder();
-                  if(e.key==="Escape") { setAddingFolder(false); setNewFolderName(""); }
+                  if(e.key==="Enter") createFolder(null);
+                  if(e.key==="Escape"){ setAddingFolderUnder(null); setNewFolderName(""); }
                 }} />
-              <button onClick={createFolder}
+              <button onClick={() => createFolder(null)}
                 style={{ padding:"6px 12px", background:tk.buttonBg, color:"#fff",
                   border:"none", borderRadius:6, fontWeight:700, fontSize:12,
                   cursor:"pointer", fontFamily:"inherit" }}>+</button>
             </div>
           ) : (
-            <button onClick={() => setAddingFolder(true)}
+            <button onClick={() => { setAddingFolderUnder("root"); setNewFolderName(""); }}
               style={{ width:"100%", padding:"8px", background:tk.primaryLight,
                 color:tk.primaryDark, border:`1.5px dashed ${tk.primary}`,
                 borderRadius:8, cursor:"pointer", fontWeight:700,
@@ -799,8 +929,18 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
                 </button>
               ))}
               <div style={{ flex:1 }} />
+              {/* Undo / Redo */}
+              <button onClick={undo} disabled={!undoStack.length} title="Undo (Ctrl+Z)"
+                style={{ padding:"5px 10px", borderRadius:6, border:"1.5px solid #e5e7eb",
+                  background:"#fff", color:undoStack.length?"#374151":"#d1d5db",
+                  fontSize:13, cursor:undoStack.length?"pointer":"default", fontFamily:"inherit" }}>↩</button>
+              <button onClick={redo} disabled={!redoStack.length} title="Redo (Ctrl+Shift+Z)"
+                style={{ padding:"5px 10px", borderRadius:6, border:"1.5px solid #e5e7eb",
+                  background:"#fff", color:redoStack.length?"#374151":"#d1d5db",
+                  fontSize:13, cursor:redoStack.length?"pointer":"default", fontFamily:"inherit" }}>↪</button>
+              <div style={{ width:1, height:20, background:"#e5e7eb" }} />
               <button
-                onClick={() => { if(window.confirm("Clear all elements?")){ setElements([]); setIsDirty(true); setSelId(null); }}}
+                onClick={() => { if(window.confirm("Clear all elements?")){ pushUndo(elements); setElements([]); setIsDirty(true); setSelId(null); }}}
                 style={{ padding:"5px 11px", borderRadius:6, border:"1.5px solid #e5e7eb",
                   background:"#fff", color:"#9ca3af", fontSize:12,
                   cursor:"pointer", fontFamily:"inherit" }}>
@@ -882,6 +1022,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
                 onSvgClick={handleSvgClick}
                 onSvgDblClick={handleSvgDblClick}
                 onPlayerMouseDown={handlePlayerMouseDown}
+                onElementMouseDown={handleElementMouseDown}
                 onElementClick={handleElementClick}
                 tk={tk}
               />
