@@ -59,10 +59,33 @@ const TK_PRESET_COLORS = [
 ];
 
 // ── Default data ──────────────────────────────────────────────────────────────
+const TK_POSITION_CATEGORIES = [
+  { key:"Offense", label:"Offense" },
+  { key:"Defense", label:"Defense" },
+];
+
 const TK_POSITIONS = [
-  "QB","RB","FB","WR","TE","C","G","T",    // offense
-  "DE","DT","NT","LB","MLB","OLB","CB","S","FS","SS",  // defense
-  "K","P","LS",                             // special teams
+  { id:1,  name:"QB",  category:"Offense" },
+  { id:2,  name:"RB",  category:"Offense" },
+  { id:3,  name:"FB",  category:"Offense" },
+  { id:4,  name:"WR",  category:"Offense" },
+  { id:5,  name:"TE",  category:"Offense" },
+  { id:6,  name:"C",   category:"Offense" },
+  { id:7,  name:"G",   category:"Offense" },
+  { id:8,  name:"T",   category:"Offense" },
+  { id:9,  name:"DE",  category:"Defense" },
+  { id:10, name:"DT",  category:"Defense" },
+  { id:11, name:"NT",  category:"Defense" },
+  { id:12, name:"LB",  category:"Defense" },
+  { id:13, name:"MLB", category:"Defense" },
+  { id:14, name:"OLB", category:"Defense" },
+  { id:15, name:"CB",  category:"Defense" },
+  { id:16, name:"S",   category:"Defense" },
+  { id:17, name:"FS",  category:"Defense" },
+  { id:18, name:"SS",  category:"Defense" },
+  { id:19, name:"K",   category:"" },
+  { id:20, name:"P",   category:"" },
+  { id:21, name:"LS",  category:"" },
 ];
 
 const TK_FORMATIONS = [
@@ -348,6 +371,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [newPlayCodeCat,   setNewPlayCodeCat]   = useState("Run");
   const [newBlockingScheme,    setNewBlockingScheme]    = useState("");
   const [newBlockingSchemeCat, setNewBlockingSchemeCat] = useState("Run");
+  const [newPositionName,      setNewPositionName]      = useState("");
+  const [newPositionCat,       setNewPositionCat]       = useState("Offense");
 
   // ── Firestore data ───────────────────────────────────────────────────────────
   const [plays,         setPlays]         = useState([]);
@@ -390,7 +415,10 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     listenCol("tackle_stPlays",  setStPlays);
     listenDoc("tackle_config/games",          snap => setGames(snap.games || TK_DEFAULT_GAMES));
     listenDoc("tackle_config/players",        snap => setPlayers(snap.players || []));
-    listenDoc("tackle_config/positions",      snap => setPositions(snap.positions || TK_POSITIONS));
+    listenDoc("tackle_config/positions", snap => {
+      const raw = snap.positions || TK_POSITIONS;
+      setPositions(raw.map((p, i) => typeof p === "string" ? { id: Date.now() + i, name: p, category: "" } : p));
+    });
     listenDoc("tackle_config/formations",     snap => setFormations(snap.formations || TK_FORMATIONS));
     listenDoc("tackle_config/personnel",      snap => setPersonnel(snap.personnel || TK_PERSONNEL));
     listenDoc("tackle_config/blockingSchemes", snap => {
@@ -2049,18 +2077,44 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     <input style={{ ...inp, padding:"9px 12px", width:72 }} placeholder="#" value={newPlayer.number} onChange={e => setNewPlayer(p => ({ ...p, number:e.target.value }))} />
                   </div>
                   <div style={{ marginBottom:12 }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginBottom:6, letterSpacing:0.5 }}>POSITIONS — tap to select (choose all that apply)</div>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                      {positions.map(pos => {
-                        const sel = newPlayer.positions.includes(pos);
-                        return (
-                          <button key={pos} onClick={() => setNewPlayer(p => ({ ...p, positions:sel?p.positions.filter(x=>x!==pos):[...p.positions,pos] }))}
-                            style={{ padding:"4px 10px", borderRadius:99, fontSize:12, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
-                            {pos}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginBottom:8, letterSpacing:0.5 }}>POSITIONS — tap to select (choose all that apply)</div>
+                    {TK_POSITION_CATEGORIES.map((cat, ci) => {
+                      const group = positions.filter(p => p.category === cat.key);
+                      if (!group.length) return null;
+                      const catColor = ci === 0 ? TK.primary : "#1d4ed8";
+                      return (
+                        <div key={cat.key} style={{ marginBottom:8 }}>
+                          <div style={{ fontSize:10, fontWeight:800, color:catColor, textTransform:"uppercase", letterSpacing:0.8, marginBottom:5 }}>{cat.label}</div>
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                            {group.map(pos => {
+                              const sel = newPlayer.positions.includes(pos.name);
+                              return (
+                                <button key={pos.id} onClick={() => setNewPlayer(p => ({ ...p, positions:sel?p.positions.filter(x=>x!==pos.name):[...p.positions,pos.name] }))}
+                                  style={{ padding:"4px 10px", borderRadius:99, fontSize:12, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                                  {pos.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {positions.filter(p => !p.category).length > 0 && (
+                      <div style={{ marginBottom:4 }}>
+                        <div style={{ fontSize:10, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:0.8, marginBottom:5 }}>Other</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                          {positions.filter(p => !p.category).map(pos => {
+                            const sel = newPlayer.positions.includes(pos.name);
+                            return (
+                              <button key={pos.id} onClick={() => setNewPlayer(p => ({ ...p, positions:sel?p.positions.filter(x=>x!==pos.name):[...p.positions,pos.name] }))}
+                                style={{ padding:"4px 10px", borderRadius:99, fontSize:12, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                                {pos.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => {
                     if (newPlayer.name.trim() && newPlayer.positions.length > 0) {
@@ -2081,20 +2135,52 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                               <input autoFocus style={{ ...inp, flex:2, padding:"6px 10px", fontSize:13 }} value={editingPlayer.name} onChange={e => setEditingPlayer(ep => ({ ...ep, name:e.target.value }))} />
                               <input style={{ ...inp, width:64, padding:"6px 10px", fontSize:13 }} value={editingPlayer.number||""} onChange={e => setEditingPlayer(ep => ({ ...ep, number:e.target.value }))} placeholder="#" />
                             </div>
-                            <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:10 }}>
-                              {positions.map(pos => {
-                                const epPos = editingPlayer.positions || (editingPlayer.position ? [editingPlayer.position] : []);
-                                const sel = epPos.includes(pos);
+                            <div style={{ marginBottom:10 }}>
+                              {TK_POSITION_CATEGORIES.map((cat, ci) => {
+                                const group = positions.filter(p => p.category === cat.key);
+                                if (!group.length) return null;
+                                const catColor = ci === 0 ? TK.primary : "#1d4ed8";
                                 return (
-                                  <button key={pos} onClick={() => setEditingPlayer(ep => {
-                                    const cur = ep.positions || (ep.position ? [ep.position] : []);
-                                    return { ...ep, positions:sel?cur.filter(x=>x!==pos):[...cur,pos], position:undefined };
-                                  })}
-                                    style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
-                                    {pos}
-                                  </button>
+                                  <div key={cat.key} style={{ marginBottom:6 }}>
+                                    <div style={{ fontSize:10, fontWeight:800, color:catColor, textTransform:"uppercase", letterSpacing:0.8, marginBottom:4 }}>{cat.label}</div>
+                                    <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                                      {group.map(pos => {
+                                        const epPos = editingPlayer.positions || (editingPlayer.position ? [editingPlayer.position] : []);
+                                        const sel = epPos.includes(pos.name);
+                                        return (
+                                          <button key={pos.id} onClick={() => setEditingPlayer(ep => {
+                                            const cur = ep.positions || (ep.position ? [ep.position] : []);
+                                            return { ...ep, positions:sel?cur.filter(x=>x!==pos.name):[...cur,pos.name], position:undefined };
+                                          })}
+                                            style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                                            {pos.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
                                 );
                               })}
+                              {positions.filter(p => !p.category).length > 0 && (
+                                <div>
+                                  <div style={{ fontSize:10, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:0.8, marginBottom:4 }}>Other</div>
+                                  <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                                    {positions.filter(p => !p.category).map(pos => {
+                                      const epPos = editingPlayer.positions || (editingPlayer.position ? [editingPlayer.position] : []);
+                                      const sel = epPos.includes(pos.name);
+                                      return (
+                                        <button key={pos.id} onClick={() => setEditingPlayer(ep => {
+                                          const cur = ep.positions || (ep.position ? [ep.position] : []);
+                                          return { ...ep, positions:sel?cur.filter(x=>x!==pos.name):[...cur,pos.name], position:undefined };
+                                        })}
+                                          style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:sel?700:500, border:`1.5px solid ${sel?TK.primary:"#d1d5db"}`, background:sel?TK.primary:"#f8fafc", color:sel?"#fff":"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                                          {pos.name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <div style={{ display:"flex", gap:6 }}>
                               <button onClick={() => { if(editingPlayer.name.trim()) savePlayers(players.map(p=>p.id===pl.id?{...p,...editingPlayer}:p)); setEditingPlayer(null); }}
@@ -2123,12 +2209,58 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
 
                 {/* Positions */}
                 <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:16 }}>Positions</div>
-                  <TkStringList items={positions}
-                    onAdd={v => savePositions([...positions, v])}
-                    onEdit={(i, v) => savePositions(positions.map((x,j)=>j===i?v:x))}
-                    onDelete={i => savePositions(positions.filter((_,j)=>j!==i))}
-                    placeholder="e.g. OLB, DE" />
+                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Positions</div>
+                  <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Assign each position to Offense or Defense so they group in the player form.</div>
+
+                  {/* Add form */}
+                  <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                    <input style={{ ...inp, flex:2, minWidth:80 }} placeholder="e.g. OLB, Nickel" value={newPositionName} onChange={e => setNewPositionName(e.target.value)}
+                      onKeyDown={e => { if(e.key==="Enter"&&newPositionName.trim()){savePositions([...positions,{id:Date.now(),name:newPositionName.trim(),category:newPositionCat}]);setNewPositionName("");}}} />
+                    <select style={{ ...inp, flex:1, minWidth:100 }} value={newPositionCat} onChange={e => setNewPositionCat(e.target.value)}>
+                      {TK_POSITION_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                      <option value="">Other</option>
+                    </select>
+                    <button onClick={() => { if(newPositionName.trim()){savePositions([...positions,{id:Date.now(),name:newPositionName.trim(),category:newPositionCat}]);setNewPositionName("");}}}
+                      style={{ padding:"9px 16px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13, whiteSpace:"nowrap" }}>Add</button>
+                  </div>
+
+                  {/* Grouped chips */}
+                  {TK_POSITION_CATEGORIES.map((cat, ci) => {
+                    const group = positions.filter(p => p.category === cat.key);
+                    if (!group.length) return null;
+                    const catColor = ci === 0 ? TK.primary : "#1d4ed8";
+                    const catBg    = ci === 0 ? TK.primaryLight : "#dbeafe";
+                    const catBorder= ci === 0 ? TK.primaryLight : "#93c5fd";
+                    return (
+                      <div key={cat.key} style={{ marginBottom:14 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:catColor, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{cat.label}</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                          {group.map(p => (
+                            <div key={p.id} style={{ background:catBg, border:`1.5px solid ${catBorder}`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                              <span style={{ fontSize:13, fontWeight:700, color:catColor }}>{p.name}</span>
+                              <button onClick={() => savePositions(positions.filter(x=>x.id!==p.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {positions.filter(p => !p.category).length > 0 && (
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Other</div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                        {positions.filter(p => !p.category).map(p => (
+                          <div key={p.id} style={{ background:"#f3f4f6", border:"1.5px solid #e5e7eb", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:"#374151" }}>{p.name}</span>
+                            <button onClick={() => savePositions(positions.filter(x=>x.id!==p.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {positions.length === 0 && (
+                    <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No positions yet. Add one above.</div>
+                  )}
                 </div>
 
                 {/* Games */}
