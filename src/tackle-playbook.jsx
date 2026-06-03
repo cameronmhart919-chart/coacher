@@ -36,12 +36,23 @@ function arrowHeadPts(pts) {
   if (!pts || pts.length < 2) return null;
   const a = pts[pts.length - 2], b = pts[pts.length - 1];
   const ang = Math.atan2(b.y - a.y, b.x - a.x);
-  const L = 11, W = 0.38;
+  const L = 14, W = 0.40;
   const p1x = (b.x - L * Math.cos(ang - W)).toFixed(1);
   const p1y = (b.y - L * Math.sin(ang - W)).toFixed(1);
   const p2x = (b.x - L * Math.cos(ang + W)).toFixed(1);
   const p2y = (b.y - L * Math.sin(ang + W)).toFixed(1);
   return `${p1x},${p1y} ${b.x.toFixed(1)},${b.y.toFixed(1)} ${p2x},${p2y}`;
+}
+
+// Return a copy of pts where the last point is pulled back by `trim` px
+// so the polyline ends at the arrowhead base, not its tip
+function trimLastPt(pts, trim = 12) {
+  if (!pts || pts.length < 2) return pts;
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  const dist = Math.hypot(b.x - a.x, b.y - a.y);
+  if (dist <= trim) return pts;
+  const t = (dist - trim) / dist;
+  return [...pts.slice(0, -1), { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }];
 }
 
 function blockTPath(pts) {
@@ -165,21 +176,24 @@ function FieldSVG({
 
     if (el.type === "route" || el.type === "motion") {
       if (!el.points || el.points.length < 2) return null;
-      const clr  = el.type === "motion" ? "#1d4ed8" : "#111827";
-      const dash = el.type === "motion" ? "8,5" : undefined;
-      const ah   = arrowHeadPts(el.points);
+      const clr      = el.type === "motion" ? "#1d4ed8" : "#111827";
+      const dash     = el.type === "motion" ? "8,5" : undefined;
+      const ah       = arrowHeadPts(el.points);
+      const drawPts  = trimLastPt(el.points, 12); // stop line before arrowhead tip
+      // Only show dots at intermediate waypoints (not first or last)
+      const midPts   = el.points.slice(1, -1);
       return (
         <g key={el.id} style={{ cursor: tool==="select" ? "grab" : "crosshair", ...selGlow }}
           onMouseDown={e => onElementMouseDown(e, el)}
           onClick={e => { e.stopPropagation(); onElementClick(el.id); }}>
           {/* fat invisible hit area */}
           <polyline points={pts2poly(el.points)} stroke="transparent" strokeWidth={12} fill="none" />
-          {sel && <polyline points={pts2poly(el.points)} stroke="#facc15" strokeWidth={6} fill="none" opacity={0.35} />}
-          <polyline points={pts2poly(el.points)} stroke={clr} strokeWidth={2} fill="none"
+          {sel && <polyline points={pts2poly(drawPts)} stroke="#facc15" strokeWidth={6} fill="none" opacity={0.35} />}
+          <polyline points={pts2poly(drawPts)} stroke={clr} strokeWidth={2.5} fill="none"
             strokeDasharray={dash} strokeLinecap="round" strokeLinejoin="round" />
           {ah && <polygon points={ah} fill={clr} />}
-          {el.points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={clr} opacity={0.6} />
+          {midPts.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={3} fill={clr} />
           ))}
         </g>
       );
@@ -293,22 +307,28 @@ function FieldSVG({
       {elements.map(renderEl)}
 
       {/* ── Route/block draft preview ── */}
-      {draftPts.length > 0 && livePos && (
-        <>
-          <polyline
-            points={pts2poly([...draftPts, livePos])}
-            stroke={draftColor} strokeWidth={2} fill="none" opacity={0.55}
-            strokeDasharray={tool === "motion" ? "8,5" : undefined}
-            strokeLinecap="round" />
-          {draftPts.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={3} fill={draftColor} opacity={0.7} />
-          ))}
-          <text x={livePos.x + 6} y={livePos.y - 6}
-            fill="rgba(255,255,255,0.6)" fontSize={9} fontFamily="monospace">
-            dbl-click to finish
-          </text>
-        </>
-      )}
+      {draftPts.length > 0 && livePos && (() => {
+        const allPts  = [...draftPts, livePos];
+        const drawPts = (tool==="route"||tool==="motion") ? trimLastPt(allPts, 12) : allPts;
+        const ah      = (tool==="route"||tool==="motion") ? arrowHeadPts(allPts) : null;
+        return (
+          <>
+            <polyline points={pts2poly(drawPts)}
+              stroke={draftColor} strokeWidth={2.5} fill="none" opacity={0.55}
+              strokeDasharray={tool==="motion" ? "8,5" : undefined}
+              strokeLinecap="round" />
+            {ah && <polygon points={ah} fill={draftColor} opacity={0.55} />}
+            {draftPts.slice(1).map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={3} fill={draftColor} opacity={0.7} />
+            ))}
+            <circle cx={draftPts[0].x} cy={draftPts[0].y} r={3} fill={draftColor} opacity={0.7} />
+            <text x={livePos.x + 6} y={livePos.y - 6}
+              fill="rgba(255,255,255,0.6)" fontSize={9} fontFamily="monospace">
+              dbl-click to finish
+            </text>
+          </>
+        );
+      })()}
 
       {/* ── Freehand live preview ── */}
       {fhDrawing && fhPoints.length > 1 && (
