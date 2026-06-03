@@ -16,16 +16,47 @@ const tkBase   = (id) => `data/${id}`;
 const tkColRef = (id, col)      => collection(getDb(), tkBase(id), col);
 const tkDocRef = (id, ...segs)  => doc(getDb(), tkBase(id), ...segs);
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
-const TK = {
-  primary:      "#be123c",
-  primaryDark:  "#881337",
-  primaryLight: "#ffe4e6",
-  buttonBg:     "#881337",
-  accent:       "#e11d48",
-  headerBg:     "linear-gradient(135deg, #4c0519 0%, #881337 100%)",
-  red:          "#dc2626",
-};
+// ── Theme helpers ─────────────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const h = hex.replace("#","");
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function rgbToHex(r,g,b) {
+  return "#"+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("");
+}
+function darken(hex,f)  { const [r,g,b]=hexToRgb(hex); return rgbToHex(r*f,g*f,b*f); }
+function lighten(hex,f) { const [r,g,b]=hexToRgb(hex); return rgbToHex(r+(255-r)*f,g+(255-g)*f,b+(255-b)*f); }
+function buildTK(primary="#be123c") {
+  const dark     = darken(primary, 0.62);
+  const veryDark = darken(primary, 0.30);
+  const light    = lighten(primary, 0.88);
+  return {
+    primary,
+    primaryDark:  dark,
+    primaryLight: light,
+    buttonBg:     dark,
+    accent:       primary,
+    headerBg:     `linear-gradient(135deg, ${veryDark} 0%, ${dark} 100%)`,
+    red:          "#dc2626",
+  };
+}
+
+// ── Theme (mutable — reassigned inside TackleCoach before each render) ────────
+let TK = buildTK();
+
+// ── Preset theme swatches ─────────────────────────────────────────────────────
+const TK_PRESET_COLORS = [
+  { label:"Crimson",       hex:"#be123c" },
+  { label:"Maroon",        hex:"#7f1d1d" },
+  { label:"Navy",          hex:"#1e3a5f" },
+  { label:"Royal Blue",    hex:"#1d4ed8" },
+  { label:"Purple",        hex:"#7e22ce" },
+  { label:"Forest Green",  hex:"#15803d" },
+  { label:"Teal",          hex:"#0f766e" },
+  { label:"Orange",        hex:"#c2410c" },
+  { label:"Gold",          hex:"#b45309" },
+  { label:"Black",         hex:"#111827" },
+];
 
 // ── Default data ──────────────────────────────────────────────────────────────
 const TK_POSITIONS = [
@@ -312,6 +343,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [defenseTrendMetrics, setDefenseTrendMetrics] = useState(["yardsAllowed"]);
   const [logoUrl,          setLogoUrl]          = useState(null);
   const [logoUploading,    setLogoUploading]    = useState(false);
+  const [themeColor,       setThemeColor]       = useState("#be123c");
   const [newPlayCode,      setNewPlayCode]      = useState(""); // fixes useState-in-render bug
   const [newPlayCodeCat,   setNewPlayCodeCat]   = useState("Run");
   const [newBlockingScheme,    setNewBlockingScheme]    = useState("");
@@ -374,7 +406,10 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     listenDoc("tackle_config/playCodes",      snap => setPlayCodes(snap.codes || []));
     listenDoc("tackle_config/gameScores",     snap => setGameScores(snap || {}));
     listenDoc("tackle_config/playerNotes",    snap => setPlayerNotes(snap.notes || {}));
-    listenDoc("tackle_config/settings",       snap => setLogoUrl(snap.logoUrl || null));
+    listenDoc("tackle_config/settings", snap => {
+      setLogoUrl(snap.logoUrl || null);
+      if (snap.themeColor) setThemeColor(snap.themeColor);
+    });
     return () => unsubs.forEach(u => u());
   }, [instanceId]);
 
@@ -409,6 +444,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
       setLogoUploading(false);
     }
   };
+
+  const saveThemeColor = (hex) => saveDoc("tackle_config/settings", { themeColor: hex });
 
   const handleLogoDelete = async () => {
     try {
@@ -641,6 +678,9 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
       successRate:   s.plays>0 ? Math.round(s.success/s.plays*100) : 0,
     }));
   }, [filteredOffPlays]);
+
+  // ── Rebuild theme for this render ────────────────────────────────────────────
+  TK = buildTK(themeColor);
 
   // ── Styles ───────────────────────────────────────────────────────────────────
   const inp = { width:"100%", padding:"9px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", background:"#fff", color:"#111827", boxSizing:"border-box", outline:"none" };
@@ -2109,6 +2149,42 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     onEdit={(i, v) => saveTags(tags.map((x,j)=>j===i?v:x))}
                     onDelete={i => saveTags(tags.filter((_,j)=>j!==i))}
                     placeholder="e.g. Red Zone, 2-Minute" />
+                </div>
+
+                {/* Color Theme */}
+                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Color Theme</div>
+                  <div style={{ fontSize:12, color:"#6b7280", marginBottom:16 }}>Choose your team's primary color. The full palette is derived automatically.</div>
+
+                  {/* Preset swatches */}
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
+                    {TK_PRESET_COLORS.map(({ label, hex }) => (
+                      <button key={hex} title={label} onClick={() => { setThemeColor(hex); saveThemeColor(hex); }}
+                        style={{ width:32, height:32, borderRadius:8, background:hex, border: themeColor.toLowerCase()===hex.toLowerCase() ? "3px solid #111827" : "2px solid rgba(0,0,0,0.12)", cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,0.18)", flexShrink:0, transition:"transform 0.1s" }}
+                        onMouseEnter={e=>e.currentTarget.style.transform="scale(1.15)"}
+                        onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Color wheel + hex input + live preview */}
+                  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(themeColor)?themeColor:"#be123c"}
+                      onChange={e => { setThemeColor(e.target.value); }}
+                      onBlur={e => { if(/^#[0-9a-fA-F]{6}$/.test(e.target.value)) saveThemeColor(e.target.value); }}
+                      style={{ width:44, height:44, padding:3, borderRadius:8, border:"1.5px solid #d1d5db", cursor:"pointer", background:"none", flexShrink:0 }} />
+                    <input type="text" value={themeColor} placeholder="#be123c"
+                      onChange={e => {
+                        const v = e.target.value;
+                        setThemeColor(v);
+                        if (/^#[0-9a-fA-F]{6}$/.test(v)) saveThemeColor(v);
+                      }}
+                      style={{ ...inp, width:110, fontFamily:"monospace", letterSpacing:1, flexShrink:0 }} />
+                    <div style={{ flex:1, minWidth:120, height:40, borderRadius:8, background:TK.headerBg, display:"flex", alignItems:"center", paddingLeft:14, gap:8 }}>
+                      <div style={{ width:22, height:22, borderRadius:6, background:TK.primary, border:"2px solid rgba(255,255,255,0.4)" }} />
+                      <span style={{ color:"#fff", fontSize:12, fontWeight:700, opacity:0.9 }}>Header preview</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Team Logo */}
