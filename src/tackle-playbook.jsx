@@ -382,6 +382,8 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   const [addingFolderUnder,setAddingFolderUnder]= useState(null); // "root" | folderId | null
   const [newPlayName,      setNewPlayName]      = useState("");
   const [addingPlayFor,    setAddingPlayFor]    = useState(null);
+  // { type:"play"|"folder", id:string } — which item is in "pick a destination" mode
+  const [movingItem,       setMovingItem]       = useState(null);
 
   const svgRef = useRef(null);
 
@@ -605,6 +607,31 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
     if (folderId===id) { setFolderId(null); setPlayId(null); }
   };
 
+  // Returns every folder in the current section that is NOT folderId or a descendant of it
+  // (prevents moving a folder into itself or into one of its own children)
+  const getFolderMoveTargets = (fid) => {
+    const getDesc = id => {
+      const kids = folders.filter(f => f.parentId===id);
+      return [id, ...kids.flatMap(k => getDesc(k.id))];
+    };
+    const excluded = new Set(getDesc(fid));
+    return folders.filter(f => f.section===section && !excluded.has(f.id));
+  };
+
+  const movePlay = async (pid, newFolderId) => {
+    await setDoc(doc(db, base, "tackle_pb_plays", pid), { folderId:newFolderId }, { merge:true });
+    setOpenFolders(o => ({ ...o, [newFolderId]:true }));
+    setMovingItem(null);
+  };
+
+  const moveFolder = async (fid, newParentId) => {
+    // null / "" → root level
+    await setDoc(doc(db, base, "tackle_pb_folders", fid),
+      { parentId: newParentId || null }, { merge:true });
+    if (newParentId) setOpenFolders(o => ({ ...o, [newParentId]:true }));
+    setMovingItem(null);
+  };
+
   const duplicatePlay = async (play) => {
     const { id: _id, createdAt: _c, ...rest } = play;
     const ref = await addDoc(collection(db, base, "tackle_pb_plays"), {
@@ -693,6 +720,26 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
           <button title="New subfolder"
             onClick={e => { e.stopPropagation(); setAddingFolderUnder(folder.id); setNewFolderName(""); }}
             style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:11, padding:"0 2px", lineHeight:1 }}>📁+</button>
+          {/* Move folder */}
+          {movingItem?.type==="folder" && movingItem?.id===folder.id ? (
+            <select autoFocus
+              onClick={e => e.stopPropagation()}
+              onChange={e => moveFolder(folder.id, e.target.value)}
+              onBlur={() => setMovingItem(null)}
+              style={{ fontSize:11, padding:"2px 3px", borderRadius:4,
+                border:`1.5px solid ${tk.primary}`, maxWidth:88, background:"#fff",
+                color:"#111827", fontFamily:"inherit" }}>
+              <option value="">↑ Root level</option>
+              {getFolderMoveTargets(folder.id)
+                .filter(f => f.id !== (folder.parentId||"__none__"))
+                .sort((a,b)=>a.name.localeCompare(b.name))
+                .map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          ) : (
+            <button title="Move folder"
+              onClick={e => { e.stopPropagation(); setMovingItem({type:"folder",id:folder.id}); }}
+              style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:12, padding:"0 2px", lineHeight:1 }}>⇥</button>
+          )}
           <button onClick={e => { e.stopPropagation(); deleteFolder(folder.id); }}
             style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:14, padding:"0 2px", lineHeight:1 }}>×</button>
         </div>
@@ -733,6 +780,25 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
                 <button title="Duplicate play"
                   onClick={e => { e.stopPropagation(); duplicatePlay(p); }}
                   style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:12, padding:"0 2px", lineHeight:1 }}>⎘</button>
+                {/* Move play */}
+                {movingItem?.type==="play" && movingItem?.id===p.id ? (
+                  <select autoFocus
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { if(e.target.value) movePlay(p.id, e.target.value); }}
+                    onBlur={() => setMovingItem(null)}
+                    style={{ fontSize:11, padding:"2px 3px", borderRadius:4,
+                      border:`1.5px solid ${tk.primary}`, maxWidth:88, background:"#fff",
+                      color:"#111827", fontFamily:"inherit" }}>
+                    <option value="">Move to…</option>
+                    {folders.filter(f => f.section===section && f.id!==p.folderId)
+                      .sort((a,b)=>a.name.localeCompare(b.name))
+                      .map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                ) : (
+                  <button title="Move to folder"
+                    onClick={e => { e.stopPropagation(); setMovingItem({type:"play",id:p.id}); }}
+                    style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:12, padding:"0 2px", lineHeight:1 }}>⇥</button>
+                )}
                 <button onClick={e => { e.stopPropagation(); deletePlay(p.id); }}
                   style={{ border:"none", background:"none", color:"#d1d5db", cursor:"pointer", fontSize:14, padding:"0 2px", lineHeight:1 }}>×</button>
               </div>
