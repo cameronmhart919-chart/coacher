@@ -324,7 +324,7 @@ function FieldSVG({
             <circle cx={draftPts[0].x} cy={draftPts[0].y} r={3} fill={draftColor} opacity={0.7} />
             <text x={livePos.x + 6} y={livePos.y - 6}
               fill="rgba(255,255,255,0.6)" fontSize={9} fontFamily="monospace">
-              dbl-click to finish
+              click = waypoint · hold to finish
             </text>
           </>
         );
@@ -405,7 +405,15 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   // { type:"play"|"folder", id:string } — which item is in "pick a destination" mode
   const [movingItem,       setMovingItem]       = useState(null);
 
-  const svgRef = useRef(null);
+  const svgRef              = useRef(null);
+  // Long-press-to-finish refs
+  const longPressTimerRef   = useRef(null);
+  const suppressNextClickRef= useRef(false);
+  const draftPtsRef         = useRef([]);   // always-current mirror of draftPts state
+  const mouseDownPosRef     = useRef(null); // SVG position at last mousedown
+
+  // Keep draftPtsRef in sync so the long-press timer can read current waypoints
+  useEffect(() => { draftPtsRef.current = draftPts; }, [draftPts]);
 
   // ── Load play into editor ───────────────────────────────────────────────────
   useEffect(() => {
@@ -487,11 +495,34 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   // ── SVG coord helper ────────────────────────────────────────────────────────
   const svgPos = (e, noSnap=false) => svgRef.current ? getSvgPos(svgRef.current, e, noSnap?0:5) : {x:0,y:0};
 
+  const LONG_PRESS_MS = 400;
+  const isDrawTool = t => t==="route" || t==="motion" || t==="block";
+
   // ── Mouse handlers ──────────────────────────────────────────────────────────
   const handleSvgMouseDown = e => {
     if (tool==="freehand") {
       setFhDrawing(true);
       setFhPoints([svgPos(e, true)]);
+      return;
+    }
+
+    if (isDrawTool(tool) && draftPtsRef.current.length >= 1) {
+      // At least one waypoint already placed — start long-press timer.
+      // When it fires, the held position becomes the final waypoint.
+      const pos = svgPos(e);
+      mouseDownPosRef.current = pos;
+      const capturedTool = tool;
+      const capturedAddEl = addEl; // capture current addEl (fresh elements for undo)
+
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null;
+        const finalPts = [...draftPtsRef.current, mouseDownPosRef.current];
+        if (finalPts.length >= 2) {
+          suppressNextClickRef.current = true;
+          capturedAddEl({ type:capturedTool, points:finalPts });
+          setDraftPts([]);
+        }
+      }, LONG_PRESS_MS);
     }
   };
 
@@ -517,6 +548,12 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   };
 
   const handleSvgMouseUp = () => {
+    // Cancel long-press timer on quick release (normal click → waypoint added via onClick)
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
     if (tool==="freehand" && fhDrawing) {
       if (fhPoints.length > 2) {
         const d = fhPoints.map((p,i)=>`${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
@@ -535,29 +572,29 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
 
   const handleSvgClick = e => {
     if (tool==="freehand") return;
+    // Suppress click that follows a long-press finish
+    if (suppressNextClickRef.current) { suppressNextClickRef.current = false; return; }
     if (didDragRef.current) { didDragRef.current = false; return; }
 
     const pos = svgPos(e);
     if (!pos) return;
 
-    // Place player
     if (tool==="player" && pendingPos) {
       addEl({ type:"player", side:pendingSide, position:pendingPos, x:pos.x, y:pos.y });
       return;
     }
-    // Add waypoint to route / motion / block
-    if (tool==="route" || tool==="motion" || tool==="block") {
+    if (isDrawTool(tool)) {
       setDraftPts(p => [...p, pos]);
       return;
     }
-    // Select → deselect on empty click
     if (tool==="select" && (e.target===svgRef.current || e.target.classList.contains("field-bg"))) {
       setSelId(null);
     }
   };
 
+  // Double-click kept as a fallback finish method
   const handleSvgDblClick = e => {
-    if ((tool==="route"||tool==="motion"||tool==="block") && draftPts.length >= 2) {
+    if (isDrawTool(tool) && draftPts.length >= 2) {
       addEl({ type:tool, points:[...draftPts] });
       setDraftPts([]);
     }
