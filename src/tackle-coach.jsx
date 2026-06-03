@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import TacklePlaybook from "./tackle-playbook.jsx";
 import { getApps } from "firebase/app";
 import {
   getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, setDoc,
@@ -737,7 +738,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   // ─────────────────────────────────────────────────────────────────────────────
   // ── RENDER ───────────────────────────────────────────────────────────────────
   // ─────────────────────────────────────────────────────────────────────────────
-  const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Settings"];
+  const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Playbook","Settings"];
 
   return (
     <div style={{ minHeight:"100vh", background:"#f4f6fa", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
@@ -794,6 +795,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                 <div style={{ width:40, height:4, borderRadius:2, background:"#d1d5db", margin:"0 auto 16px" }} />
                 {[
                   { icon:"📜", label:"Play History", tab:"Play History" },
+                  { icon:"📓", label:"Playbook",    tab:"Playbook" },
                   { icon:"⚙️", label:"Settings",    tab:"Settings" },
                 ].map(item => (
                   <button key={item.tab} onClick={() => { setTab(item.tab); setMobileMoreOpen(false); }}
@@ -2045,6 +2047,17 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
               </>
             )}
           </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* PLAYBOOK TAB                                                        */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {tab === "Playbook" && (
+          <TacklePlaybook
+            instanceId={instanceId}
+            tk={TK}
+            playCodes={playCodes}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
