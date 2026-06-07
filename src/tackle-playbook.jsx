@@ -74,6 +74,13 @@ function translatePath(d, dx, dy) {
   );
 }
 
+// Mirror every x-coordinate in an SVG path string across the vertical line x=cx
+function mirrorPathX(d, cx) {
+  return d.replace(/([ML])(-?[\d.]+),(-?[\d.]+)/g,
+    (_, cmd, x, y) => `${cmd}${(2*cx - parseFloat(x)).toFixed(1)},${parseFloat(y).toFixed(1)}`
+  );
+}
+
 function getSvgPos(svgEl, e, snap = 5) {
   const r = svgEl.getBoundingClientRect();
   const raw = {
@@ -482,10 +489,53 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
     if (selId===id) setSelId(null);
   };
 
+  // ── Copy / Mirror selected element ──────────────────────────────────────────
+  const clampX = x => Math.max(F.x + 8, Math.min(F.r - 8, x));
+  const clampY = y => Math.max(F.y + 8, Math.min(F.b - 8, y));
+
+  // Duplicate the selected element, offset slightly, and select the copy
+  const copyEl = () => {
+    const el = elements.find(e => e.id===selId);
+    if (!el) return;
+    const OFF = 24;
+    let clone;
+    if (el.type==="player") {
+      clone = { ...el, x:clampX(el.x+OFF), y:clampY(el.y+OFF) };
+    } else if (el.type==="freehand") {
+      clone = { ...el, pathData:translatePath(el.pathData, OFF, OFF) };
+    } else {
+      clone = { ...el, points:el.points.map(p => ({ x:clampX(p.x+OFF), y:clampY(p.y+OFF) })) };
+    }
+    pushUndo(elements);
+    const newId = uid();
+    setElements(p => [...p, { ...clone, id:newId }]);
+    setIsDirty(true);
+    setSelId(newId);
+  };
+
+  // Mirror the selected element horizontally across the field's vertical centre
+  const mirrorEl = () => {
+    const el = elements.find(e => e.id===selId);
+    if (!el) return;
+    const cx = F.x + F.w/2;
+    let patch;
+    if (el.type==="player") {
+      patch = { x:clampX(2*cx - el.x) };
+    } else if (el.type==="freehand") {
+      patch = { pathData:mirrorPathX(el.pathData, cx) };
+    } else {
+      patch = { points:el.points.map(p => ({ x:clampX(2*cx - p.x), y:p.y })) };
+    }
+    pushUndo(elements);
+    updateEl(el.id, patch);
+  };
+
   // ── Keyboard ────────────────────────────────────────────────────────────────
   const handleKeyDown = useCallback(e => {
     if (e.target.tagName==="INPUT" || e.target.tagName==="TEXTAREA" || e.target.tagName==="SELECT") return;
     if ((e.key==="Delete"||e.key==="Backspace") && selId) { e.preventDefault(); deleteEl(selId); }
+    if (e.key==="d" && (e.ctrlKey||e.metaKey) && selId) { e.preventDefault(); copyEl(); }
+    if ((e.key==="m"||e.key==="M") && !e.ctrlKey && !e.metaKey && selId) { e.preventDefault(); mirrorEl(); }
     if (e.key==="Escape") { setDraftPts([]); setPendingPos(null); setTool("select"); }
     if (e.key==="s" && (e.ctrlKey||e.metaKey)) { e.preventDefault(); handleSave(); }
     if (e.key==="z" && (e.ctrlKey||e.metaKey)) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -746,6 +796,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const selectedPlayer = elements.find(e => e.id===selId && e.type==="player");
+  const selectedEl     = elements.find(e => e.id===selId);
   const currentPlay    = plays.find(p => p.id===playId);
   const rootFolders    = folders.filter(f => f.section===section && !f.parentId);
 
@@ -1104,21 +1155,38 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
               </div>
             )}
 
-            {/* ── Route presets (shown when a player is selected in select mode) ── */}
-            {tool==="select" && selectedPlayer && (
+            {/* ── Selection action bar (shown when any element is selected in select mode) ── */}
+            {tool==="select" && selectedEl && (
               <div style={{ padding:"6px 14px", borderBottom:"1.5px solid #e5e7eb",
                 background:"#f9fafb", display:"flex", gap:5, alignItems:"center", flexWrap:"wrap" }}>
-                <span style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginRight:4 }}>
-                  ROUTE PRESETS:
-                </span>
-                {ROUTE_PRESETS.map(r => (
-                  <button key={r.key} onClick={() => applyPreset(r.key)}
-                    style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:500,
-                      border:"1.5px solid #d1d5db", background:"#fff", color:"#374151",
-                      cursor:"pointer", fontFamily:"inherit" }}>
-                    {r.label}
-                  </button>
-                ))}
+                <button onClick={copyEl} title="Duplicate (⌘D)"
+                  style={{ padding:"3px 11px", borderRadius:99, fontSize:11, fontWeight:600,
+                    border:"1.5px solid #d1d5db", background:"#fff", color:"#374151",
+                    cursor:"pointer", fontFamily:"inherit" }}>
+                  ⧉ Copy
+                </button>
+                <button onClick={mirrorEl} title="Mirror to other side (M)"
+                  style={{ padding:"3px 11px", borderRadius:99, fontSize:11, fontWeight:600,
+                    border:"1.5px solid #d1d5db", background:"#fff", color:"#374151",
+                    cursor:"pointer", fontFamily:"inherit" }}>
+                  ⇄ Mirror
+                </button>
+                {selectedPlayer && (
+                  <>
+                    <div style={{ width:1, height:18, background:"#e5e7eb", margin:"0 3px" }} />
+                    <span style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginRight:4 }}>
+                      ROUTES:
+                    </span>
+                    {ROUTE_PRESETS.map(r => (
+                      <button key={r.key} onClick={() => applyPreset(r.key)}
+                        style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:500,
+                          border:"1.5px solid #d1d5db", background:"#fff", color:"#374151",
+                          cursor:"pointer", fontFamily:"inherit" }}>
+                        {r.label}
+                      </button>
+                    ))}
+                  </>
+                )}
                 <div style={{ flex:1 }} />
                 <span style={{ fontSize:11, color:"#d1d5db" }}>
                   Delete key removes selection
