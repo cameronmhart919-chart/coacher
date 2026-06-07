@@ -1312,6 +1312,11 @@ const handleLogoDelete = async () => {
                   👥 Team
                 </button>
                 <div style={{ height:"1px", background:"#e5e7eb" }} />
+                <button onClick={() => { window.location.href = "/tackle"; }}
+                  style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#111827", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+                  🏉 Tackle Portal
+                </button>
+                <div style={{ height:"1px", background:"#e5e7eb" }} />
                 <button onClick={() => signOut(auth)}
                   style={{ width:"100%", padding:"12px 16px", background:"none", border:"none", textAlign:"left", fontSize:13, fontWeight:700, color:"#dc2626", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
                   🚪 Sign Out
