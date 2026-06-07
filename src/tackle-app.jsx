@@ -9,10 +9,15 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "./firebase-config.js";   // ensures Firebase app is initialised
+import { getApps } from "firebase/app";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import TackleCoach from "./tackle-coach.jsx";
+
+// Reuse the Firebase app already initialised by football-coach.jsx (imported in main.jsx).
+// Do NOT call initializeApp here — a second init with different config throws duplicate-app.
+const auth = getAuth(getApps()[0]);
+const db   = getFirestore(getApps()[0]);
 
 export default function TackleApp() {
   const navigate = useNavigate();
