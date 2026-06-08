@@ -757,6 +757,20 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
     addEl({ type:item.kind, points:pts });
   };
 
+  // Drop a saved library item onto the field as a standalone element (no player
+  // needed). Anchored at field centre, selected so it's ready to drag.
+  const placeLibraryItem = item => {
+    const ax = F.x + F.w/2, ay = F.y + F.h/2;
+    const pts = item.points.map(o => ({ x:clampX(ax+o.dx), y:clampY(ay+o.dy) }));
+    pushUndo(elements);
+    const newId = uid();
+    setElements(p => [...p, { type:item.kind, points:pts, id:newId }]);
+    setIsDirty(true);
+    setSelId(newId);
+    setTool("select");
+    setLibOpen(false);
+  };
+
   const deleteLibraryItem = async id => {
     await deleteDoc(doc(db, base, "tackle_pb_library", id));
   };
@@ -1436,16 +1450,22 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                       {items.map(item => (
                         <div key={item.id} style={{ border:"1.5px solid #e5e7eb", borderRadius:10,
                           padding:8, display:"flex", alignItems:"center", gap:8 }}>
-                          <LibraryPreview item={item} />
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:13, fontWeight:700, color:"#111827",
-                              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                              {item.name}
+                          <button onClick={() => placeLibraryItem(item)}
+                            title="Add to the field (drag to position)"
+                            style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:8,
+                              border:"none", background:"none", cursor:"pointer", padding:0, textAlign:"left",
+                              fontFamily:"inherit" }}>
+                            <LibraryPreview item={item} />
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:700, color:"#111827",
+                                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                                {item.name}
+                              </div>
+                              <div style={{ fontSize:10, color:tk.primary, fontWeight:600 }}>
+                                + Add to field
+                              </div>
                             </div>
-                            <div style={{ fontSize:10, color:"#9ca3af", textTransform:"capitalize" }}>
-                              {item.kind} · {item.refSide}
-                            </div>
-                          </div>
+                          </button>
                           <button onClick={() => deleteLibraryItem(item.id)}
                             title="Delete"
                             style={{ border:"none", background:"none", color:"#9ca3af",
@@ -1457,7 +1477,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                 )
               ))}
               <div style={{ marginTop:18, fontSize:11, color:"#9ca3af", lineHeight:1.5 }}>
-                Tip: select a player while building a play to apply a saved route/block from the action bar — it auto-mirrors to the player's side.
+                Tip: click any item to drop it on the field as a standalone element you can drag. Or select a player first and apply it from the action bar — that version auto-mirrors to the player's side.
               </div>
             </div>
           </div>
