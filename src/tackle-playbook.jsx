@@ -132,6 +132,54 @@ const SIDE_POSITIONS = {
   st:      ["K","P","LS","PR","KR","H","G","L1","L2","R1","R2"],
 };
 
+// ── Built-in formations ────────────────────────────────────────────────────────
+// Coords in SVG/field space: LOS y=250, centre x=350. Offense lines up at/above
+// the LOS and attacks +y (downfield); defence sits just below the LOS.
+const _o = (position, x, y) => ({ side:"offense", position, x, y });
+const _d = (position, x, y) => ({ side:"defense", position, x, y });
+// Standard 5-man offensive line on the LOS
+const _OL = [ _o("LT",296,250), _o("LG",323,250), _o("C",350,250), _o("RG",377,250), _o("RT",404,250) ];
+
+const BUILTIN_FORMATIONS = [
+  { name:"Trips Right", unit:"Offense", builtin:true, players:[ ..._OL,
+    _o("QB",350,212), _o("RB",382,205),
+    _o("WR",108,250), _o("TE",436,250), _o("WR",512,250), _o("WR",584,250) ] },
+  { name:"I-Form", unit:"Offense", builtin:true, players:[ ..._OL,
+    _o("QB",350,238), _o("FB",350,212), _o("RB",350,186),
+    _o("TE",436,250), _o("WR",108,250), _o("WR",592,250) ] },
+  { name:"Shotgun Spread", unit:"Offense", builtin:true, players:[ ..._OL,
+    _o("QB",350,210), _o("RB",386,206),
+    _o("WR",92,250), _o("WR",182,250), _o("WR",518,250), _o("WR",608,250) ] },
+  { name:"Singleback", unit:"Offense", builtin:true, players:[ ..._OL,
+    _o("QB",350,238), _o("RB",350,200),
+    _o("TE",436,250), _o("WR",100,250), _o("WR",200,250), _o("WR",600,250) ] },
+  { name:"4-3", unit:"Defense", builtin:true, players:[
+    _d("DE",300,256), _d("DT",330,256), _d("DT",370,256), _d("DE",400,256),
+    _d("LB",312,296), _d("MLB",350,296), _d("LB",388,296),
+    _d("CB",110,262), _d("CB",590,262), _d("S",284,360), _d("S",416,360) ] },
+  { name:"Nickel", unit:"Defense", builtin:true, players:[
+    _d("DE",300,256), _d("DT",334,256), _d("DT",366,256), _d("DE",400,256),
+    _d("LB",326,296), _d("LB",374,296),
+    _d("CB",110,262), _d("CB",590,262), _d("NB",206,278),
+    _d("S",292,360), _d("S",408,360) ] },
+];
+
+// ── Mini preview of a formation (players as dots on a small field) ──────────────
+function FormationPreview({ players, size = 72 }) {
+  const bw = size, bh = size * (F.h / F.w);
+  const dot = p => ({ x:(p.x - F.x)/F.w*bw, y:(p.y - F.y)/F.h*bh });
+  return (
+    <svg width={bw} height={bh} style={{ background:"#2d6a1a", borderRadius:5, flexShrink:0 }}>
+      <line x1={0} y1={(F.los-F.y)/F.h*bh} x2={bw} y2={(F.los-F.y)/F.h*bh} stroke="rgba(255,255,255,0.5)" strokeWidth={1} />
+      {players.map((p,i) => {
+        const d = dot(p), off = p.side==="offense";
+        return <circle key={i} cx={d.x} cy={d.y} r={2.6}
+          fill={off ? "#facc15" : "#fff"} stroke={off ? "#b45309" : "#111827"} strokeWidth={0.8} />;
+      })}
+    </svg>
+  );
+}
+
 // ── Tiny uid ───────────────────────────────────────────────────────────────────
 let _uid = 0;
 const uid = () => `${Date.now()}-${++_uid}`;
@@ -390,6 +438,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const [folders, setFolders] = useState([]);
   const [plays,   setPlays]   = useState([]);
   const [library, setLibrary] = useState([]);   // saved reusable routes & blocks
+  const [formationsLib, setFormationsLib] = useState([]);  // saved player formations
 
   useEffect(() => {
     if (!instanceId) return;
@@ -400,7 +449,10 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
     const u3 = onSnapshot(collection(db, base, "tackle_pb_library"),
       snap => setLibrary(snap.docs.map(d => ({ id:d.id, ...d.data() }))
         .sort((a,b) => (a.name||"").localeCompare(b.name||""))));
-    return () => { u1(); u2(); u3(); };
+    const u4 = onSnapshot(collection(db, base, "tackle_pb_formations"),
+      snap => setFormationsLib(snap.docs.map(d => ({ id:d.id, ...d.data() }))
+        .sort((a,b) => (a.name||"").localeCompare(b.name||""))));
+    return () => { u1(); u2(); u3(); u4(); };
   }, [instanceId]);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
@@ -425,6 +477,12 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const [libNaming,   setLibNaming]   = useState(false);  // showing the "name this" input?
   const [libNameInput,setLibNameInput]= useState("");
   const [libOpen,     setLibOpen]     = useState(false);  // library manager modal open?
+
+  // ── Formations state ──────────────────────────────────────────────────────────
+  const [formOpen,     setFormOpen]     = useState(false); // formations modal open?
+  const [formNaming,   setFormNaming]   = useState(false);
+  const [formNameInput,setFormNameInput]= useState("");
+  const [editingForm,  setEditingForm]  = useState(null);  // { id, name } being edited on the field
 
   // ── Drawing state ───────────────────────────────────────────────────────────
   const [draftPts,  setDraftPts]  = useState([]);
@@ -778,6 +836,57 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   // Close the "name this route" input whenever the selection changes
   useEffect(() => { setLibNaming(false); setLibNameInput(""); }, [selId]);
 
+  // Exit formation-edit mode when switching to a different play
+  useEffect(() => { setEditingForm(null); }, [playId]);
+
+  // ── Formations ────────────────────────────────────────────────────────────────
+  // Apply a formation: replace the play's players with the formation's set,
+  // keeping any routes/blocks already drawn.
+  const applyFormation = f => {
+    pushUndo(elements);
+    const newPlayers = f.players.map(p => ({
+      id:uid(), type:"player", side:p.side, position:p.position, x:p.x, y:p.y,
+    }));
+    setElements(prev => [...prev.filter(e => e.type!=="player"), ...newPlayers]);
+    setIsDirty(true);
+    setSelId(null);
+    setEditingForm(null);   // startEditFormation re-sets this immediately after
+    setFormOpen(false);
+  };
+
+  // Save the players currently on the field as a named formation for this unit.
+  const saveCurrentAsFormation = async () => {
+    const name = formNameInput.trim();
+    const players = elements.filter(e => e.type==="player")
+      .map(p => ({ side:p.side, position:p.position, x:p.x, y:p.y }));
+    if (!name || players.length===0) return;
+    await addDoc(collection(db, base, "tackle_pb_formations"), {
+      name, unit:section, players, createdAt:new Date().toISOString(),
+    });
+    setFormNaming(false); setFormNameInput("");
+  };
+
+  const deleteFormation = async id => {
+    await deleteDoc(doc(db, base, "tackle_pb_formations", id));
+    if (editingForm?.id === id) setEditingForm(null);
+  };
+
+  // Load a saved formation onto the field for editing, then update it in place.
+  const startEditFormation = f => {
+    applyFormation(f);                 // drops its players onto the field
+    setEditingForm({ id:f.id, name:f.name });
+  };
+  const saveEditedFormation = async () => {
+    if (!editingForm) return;
+    const name = editingForm.name.trim() || "Formation";
+    const players = elements.filter(e => e.type==="player")
+      .map(p => ({ side:p.side, position:p.position, x:p.x, y:p.y }));
+    if (players.length === 0) return;
+    await setDoc(doc(db, base, "tackle_pb_formations", editingForm.id),
+      { name, players }, { merge:true });
+    setEditingForm(null);
+  };
+
   // ── Folder / play CRUD ──────────────────────────────────────────────────────
   const createFolder = async (parentId = null) => {
     if (!newFolderName.trim()) return;
@@ -895,6 +1004,9 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const savedRoutes    = library.filter(i => i.kind==="route" || i.kind==="motion");
   const savedBlocks    = library.filter(i => i.kind==="block");
   const selIsLibKind   = selectedEl && isLibKind(selectedEl.type);
+  const builtinForms   = BUILTIN_FORMATIONS.filter(f => f.unit===section);
+  const savedForms     = formationsLib.filter(f => f.unit===section);
+  const playerCountOnField = elements.filter(e => e.type==="player").length;
 
   // ── Add the current play to the team's play-code list (if not already there) ──
   const trimmedName     = playName.trim();
@@ -1194,6 +1306,13 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
               {!isDirty && currentPlay && (
                 <span style={{ fontSize:11, color:"#9ca3af" }}>Saved ✓</span>
               )}
+              <button onClick={() => { setFormOpen(true); setFormNaming(false); }}
+                title="Apply a preset formation, or save the current players as one"
+                style={{ padding:"6px 14px", background:"#f3f4f6", color:"#374151",
+                  border:"1.5px solid #e5e7eb", borderRadius:6, fontWeight:700,
+                  fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+                ⊞ Formations
+              </button>
               <button onClick={() => setLibOpen(true)}
                 title="Manage your saved routes & blocks"
                 style={{ padding:"6px 14px", background:"#f3f4f6", color:"#374151",
@@ -1208,6 +1327,34 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                 ↓ PNG
               </button>
             </div>
+
+            {/* ── Editing-formation banner ── */}
+            {editingForm && (
+              <div style={{ padding:"7px 14px", borderBottom:"1.5px solid #e5e7eb",
+                background:tk.primaryLight, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:tk.primaryDark }}>✎ Editing formation:</span>
+                <input value={editingForm.name}
+                  onChange={e => setEditingForm(ef => ({ ...ef, name:e.target.value }))}
+                  onKeyDown={e => { if (e.key==="Enter") saveEditedFormation(); }}
+                  style={{ padding:"4px 10px", border:`1.5px solid ${tk.primary}`, borderRadius:6,
+                    fontSize:12, fontFamily:"inherit", outline:"none", width:160 }} />
+                <span style={{ fontSize:11, color:tk.primaryDark }}>
+                  Rearrange players, then update.
+                </span>
+                <div style={{ flex:1 }} />
+                <button onClick={saveEditedFormation}
+                  style={{ padding:"5px 14px", background:tk.buttonBg, color:"#fff", border:"none",
+                    borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+                  Update Formation
+                </button>
+                <button onClick={() => setEditingForm(null)}
+                  style={{ padding:"5px 12px", background:"#fff", color:"#6b7280",
+                    border:"1.5px solid #d1d5db", borderRadius:6, fontWeight:600, fontSize:12,
+                    cursor:"pointer", fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* ── Toolbar ── */}
             <div style={{ padding:"6px 14px", borderBottom:"1.5px solid #e5e7eb",
@@ -1478,6 +1625,120 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
               ))}
               <div style={{ marginTop:18, fontSize:11, color:"#9ca3af", lineHeight:1.5 }}>
                 Tip: click any item to drop it on the field as a standalone element you can drag. Or select a player first and apply it from the action bar — that version auto-mirrors to the player's side.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════
+          FORMATIONS — apply a preset / save current players
+      ════════════════════════════════════════════════════════ */}
+      {formOpen && (
+        <div onClick={() => setFormOpen(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
+            display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:"#fff", borderRadius:14, width:600, maxWidth:"100%",
+              maxHeight:"82vh", overflow:"hidden", display:"flex", flexDirection:"column",
+              boxShadow:"0 16px 48px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding:"16px 20px", borderBottom:"1.5px solid #e5e7eb",
+              display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"#111827", flex:1 }}>
+                ⊞ {section} Formations
+              </div>
+              <button onClick={() => setFormOpen(false)}
+                style={{ border:"none", background:"none", fontSize:20, color:"#9ca3af",
+                  cursor:"pointer", lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ padding:"8px 20px 20px", overflowY:"auto" }}>
+              <div style={{ fontSize:12, color:"#6b7280", marginTop:8, marginBottom:4 }}>
+                Click a formation to drop its players onto the field (replaces current players, keeps drawn routes/blocks).
+              </div>
+              {[["Presets", builtinForms], ["Your Formations", savedForms]].map(([label, items]) => (
+                <div key={label} style={{ marginTop:14 }}>
+                  <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", letterSpacing:0.5, marginBottom:8 }}>
+                    {label.toUpperCase()}{items.length ? ` (${items.length})` : ""}
+                  </div>
+                  {items.length === 0 ? (
+                    <div style={{ fontSize:12, color:"#d1d5db", padding:"4px 0 8px" }}>
+                      {label==="Presets" ? "No built-in formations for this unit." : "None yet — arrange players, then save below."}
+                    </div>
+                  ) : (
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:10 }}>
+                      {items.map((f, idx) => (
+                        <div key={f.id || `b${idx}`} style={{ border:"1.5px solid #e5e7eb", borderRadius:10,
+                          padding:8, display:"flex", alignItems:"center", gap:8 }}>
+                          <button onClick={() => applyFormation(f)}
+                            title={`Apply "${f.name}"`}
+                            style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:8,
+                              border:"none", background:"none", cursor:"pointer", padding:0, textAlign:"left",
+                              fontFamily:"inherit" }}>
+                            <FormationPreview players={f.players} />
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:700, color:"#111827",
+                                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                                {f.name}
+                              </div>
+                              <div style={{ fontSize:10, color:tk.primary, fontWeight:600 }}>
+                                {f.players.length} players · apply
+                              </div>
+                            </div>
+                          </button>
+                          {!f.builtin && (
+                            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                              <button onClick={() => startEditFormation(f)} title="Edit on the field"
+                                style={{ border:"none", background:"none", color:"#9ca3af",
+                                  cursor:"pointer", fontSize:14, lineHeight:1, padding:2 }}>✎</button>
+                              <button onClick={() => deleteFormation(f.id)} title="Delete"
+                                style={{ border:"none", background:"none", color:"#9ca3af",
+                                  cursor:"pointer", fontSize:14, lineHeight:1, padding:2 }}>🗑</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Save current arrangement */}
+              <div style={{ marginTop:18, paddingTop:16, borderTop:"1.5px solid #e5e7eb" }}>
+                {formNaming ? (
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <input autoFocus value={formNameInput}
+                      onChange={e => setFormNameInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key==="Enter") saveCurrentAsFormation();
+                        if (e.key==="Escape") { setFormNaming(false); setFormNameInput(""); }
+                      }}
+                      placeholder={`Name this ${section} formation…`}
+                      style={{ flex:1, padding:"8px 12px", border:`1.5px solid ${tk.primary}`,
+                        borderRadius:8, fontSize:13, fontFamily:"inherit", outline:"none" }} />
+                    <button onClick={saveCurrentAsFormation}
+                      style={{ padding:"8px 16px", background:tk.buttonBg, color:"#fff", border:"none",
+                        borderRadius:8, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                      Save
+                    </button>
+                    <button onClick={() => { setFormNaming(false); setFormNameInput(""); }}
+                      style={{ padding:"8px 12px", background:"#fff", color:"#6b7280",
+                        border:"1.5px solid #d1d5db", borderRadius:8, fontWeight:600, fontSize:13,
+                        cursor:"pointer", fontFamily:"inherit" }}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setFormNaming(true); setFormNameInput(""); }}
+                    disabled={playerCountOnField===0}
+                    title={playerCountOnField===0 ? "Place some players first" : "Save the current players as a reusable formation"}
+                    style={{ padding:"9px 16px", background:playerCountOnField===0 ? "#f3f4f6" : tk.primaryLight,
+                      color:playerCountOnField===0 ? "#9ca3af" : tk.primaryDark,
+                      border:`1.5px dashed ${playerCountOnField===0 ? "#d1d5db" : tk.primary}`,
+                      borderRadius:8, fontWeight:700, fontSize:13,
+                      cursor:playerCountOnField===0 ? "default" : "pointer", fontFamily:"inherit" }}>
+                    + Save current {playerCountOnField>0 ? `${playerCountOnField} ` : ""}players as a formation
+                  </button>
+                )}
               </div>
             </div>
           </div>
