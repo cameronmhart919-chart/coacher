@@ -482,6 +482,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const [formOpen,     setFormOpen]     = useState(false); // formations modal open?
   const [formNaming,   setFormNaming]   = useState(false);
   const [formNameInput,setFormNameInput]= useState("");
+  const [editingForm,  setEditingForm]  = useState(null);  // { id, name } being edited on the field
 
   // ── Drawing state ───────────────────────────────────────────────────────────
   const [draftPts,  setDraftPts]  = useState([]);
@@ -835,6 +836,9 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   // Close the "name this route" input whenever the selection changes
   useEffect(() => { setLibNaming(false); setLibNameInput(""); }, [selId]);
 
+  // Exit formation-edit mode when switching to a different play
+  useEffect(() => { setEditingForm(null); }, [playId]);
+
   // ── Formations ────────────────────────────────────────────────────────────────
   // Apply a formation: replace the play's players with the formation's set,
   // keeping any routes/blocks already drawn.
@@ -846,6 +850,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
     setElements(prev => [...prev.filter(e => e.type!=="player"), ...newPlayers]);
     setIsDirty(true);
     setSelId(null);
+    setEditingForm(null);   // startEditFormation re-sets this immediately after
     setFormOpen(false);
   };
 
@@ -863,6 +868,23 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
 
   const deleteFormation = async id => {
     await deleteDoc(doc(db, base, "tackle_pb_formations", id));
+    if (editingForm?.id === id) setEditingForm(null);
+  };
+
+  // Load a saved formation onto the field for editing, then update it in place.
+  const startEditFormation = f => {
+    applyFormation(f);                 // drops its players onto the field
+    setEditingForm({ id:f.id, name:f.name });
+  };
+  const saveEditedFormation = async () => {
+    if (!editingForm) return;
+    const name = editingForm.name.trim() || "Formation";
+    const players = elements.filter(e => e.type==="player")
+      .map(p => ({ side:p.side, position:p.position, x:p.x, y:p.y }));
+    if (players.length === 0) return;
+    await setDoc(doc(db, base, "tackle_pb_formations", editingForm.id),
+      { name, players }, { merge:true });
+    setEditingForm(null);
   };
 
   // ── Folder / play CRUD ──────────────────────────────────────────────────────
@@ -1306,6 +1328,34 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
               </button>
             </div>
 
+            {/* ── Editing-formation banner ── */}
+            {editingForm && (
+              <div style={{ padding:"7px 14px", borderBottom:"1.5px solid #e5e7eb",
+                background:tk.primaryLight, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:12, fontWeight:700, color:tk.primaryDark }}>✎ Editing formation:</span>
+                <input value={editingForm.name}
+                  onChange={e => setEditingForm(ef => ({ ...ef, name:e.target.value }))}
+                  onKeyDown={e => { if (e.key==="Enter") saveEditedFormation(); }}
+                  style={{ padding:"4px 10px", border:`1.5px solid ${tk.primary}`, borderRadius:6,
+                    fontSize:12, fontFamily:"inherit", outline:"none", width:160 }} />
+                <span style={{ fontSize:11, color:tk.primaryDark }}>
+                  Rearrange players, then update.
+                </span>
+                <div style={{ flex:1 }} />
+                <button onClick={saveEditedFormation}
+                  style={{ padding:"5px 14px", background:tk.buttonBg, color:"#fff", border:"none",
+                    borderRadius:6, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+                  Update Formation
+                </button>
+                <button onClick={() => setEditingForm(null)}
+                  style={{ padding:"5px 12px", background:"#fff", color:"#6b7280",
+                    border:"1.5px solid #d1d5db", borderRadius:6, fontWeight:600, fontSize:12,
+                    cursor:"pointer", fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+              </div>
+            )}
+
             {/* ── Toolbar ── */}
             <div style={{ padding:"6px 14px", borderBottom:"1.5px solid #e5e7eb",
               background:"#fafafa", display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
@@ -1636,9 +1686,14 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                             </div>
                           </button>
                           {!f.builtin && (
-                            <button onClick={() => deleteFormation(f.id)} title="Delete"
-                              style={{ border:"none", background:"none", color:"#9ca3af",
-                                cursor:"pointer", fontSize:16, lineHeight:1, padding:2 }}>🗑</button>
+                            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                              <button onClick={() => startEditFormation(f)} title="Edit on the field"
+                                style={{ border:"none", background:"none", color:"#9ca3af",
+                                  cursor:"pointer", fontSize:14, lineHeight:1, padding:2 }}>✎</button>
+                              <button onClick={() => deleteFormation(f.id)} title="Delete"
+                                style={{ border:"none", background:"none", color:"#9ca3af",
+                                  cursor:"pointer", fontSize:14, lineHeight:1, padding:2 }}>🗑</button>
+                            </div>
                           )}
                         </div>
                       ))}
