@@ -132,6 +132,9 @@ const SIDE_POSITIONS = {
   st:      ["K","P","LS","PR","KR","H","G","L1","L2","R1","R2"],
 };
 
+// Map a playbook section to its default player side
+const SECTION_SIDE = { "Offense":"offense", "Defense":"defense", "Special Teams":"st" };
+
 // ── Built-in formations ────────────────────────────────────────────────────────
 // Coords in SVG/field space: LOS y=250, centre x=350. Offense lines up at/above
 // the LOS and attacks +y (downfield); defence sits just below the LOS.
@@ -797,7 +800,8 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
     const refSide = anchor.x < F.x + F.w/2 ? "left" : "right";
     const offs    = el.points.map(p => ({ dx:+(p.x-anchor.x).toFixed(1), dy:+(p.y-anchor.y).toFixed(1) }));
     await addDoc(collection(db, base, "tackle_pb_library"), {
-      name, kind:el.type, refSide, points:offs, createdAt:new Date().toISOString(),
+      name, kind:el.type, refSide, points:offs, section,
+      createdAt:new Date().toISOString(),
     });
     setLibNaming(false); setLibNameInput("");
   };
@@ -838,6 +842,12 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
 
   // Exit formation-edit mode when switching to a different play
   useEffect(() => { setEditingForm(null); }, [playId]);
+
+  // Default the player-placement side to the current section's unit
+  useEffect(() => {
+    setPendingSide(SECTION_SIDE[section] || "offense");
+    setPendingPos(null);
+  }, [section]);
 
   // ── Formations ────────────────────────────────────────────────────────────────
   // Apply a formation: replace the play's players with the formation's set,
@@ -1001,8 +1011,11 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const selectedEl     = elements.find(e => e.id===selId);
   const currentPlay    = plays.find(p => p.id===playId);
   const rootFolders    = folders.filter(f => f.section===section && !f.parentId);
-  const savedRoutes    = library.filter(i => i.kind==="route" || i.kind==="motion");
-  const savedBlocks    = library.filter(i => i.kind==="block");
+  // Only show library items belonging to the current section (legacy items
+  // saved before sections were tracked have no `section` and show everywhere).
+  const inSection      = i => !i.section || i.section===section;
+  const savedRoutes    = library.filter(i => (i.kind==="route" || i.kind==="motion") && inSection(i));
+  const savedBlocks    = library.filter(i => i.kind==="block" && inSection(i));
   const selIsLibKind   = selectedEl && isLibKind(selectedEl.type);
   const builtinForms   = BUILTIN_FORMATIONS.filter(f => f.unit===section);
   const savedForms     = formationsLib.filter(f => f.unit===section);
@@ -1318,7 +1331,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                 style={{ padding:"6px 14px", background:"#f3f4f6", color:"#374151",
                   border:"1.5px solid #e5e7eb", borderRadius:6, fontWeight:700,
                   fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-                📚 Library{library.length ? ` (${library.length})` : ""}
+                📚 Library{(savedRoutes.length+savedBlocks.length) ? ` (${savedRoutes.length+savedBlocks.length})` : ""}
               </button>
               <button onClick={exportPng}
                 style={{ padding:"6px 14px", background:"#f3f4f6", color:"#374151",
@@ -1481,17 +1494,22 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                 {selectedPlayer && (
                   <>
                     <div style={{ width:1, height:18, background:"#e5e7eb", margin:"0 3px" }} />
-                    <span style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginRight:4 }}>
-                      ROUTES:
-                    </span>
-                    {ROUTE_PRESETS.map(r => (
-                      <button key={r.key} onClick={() => applyPreset(r.key)}
-                        style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:500,
-                          border:"1.5px solid #d1d5db", background:"#fff", color:"#374151",
-                          cursor:"pointer", fontFamily:"inherit" }}>
-                        {r.label}
-                      </button>
-                    ))}
+                    {/* Built-in route presets are offensive — hide them in Defense */}
+                    {section !== "Defense" && (
+                      <>
+                        <span style={{ fontSize:11, fontWeight:700, color:"#9ca3af", marginRight:4 }}>
+                          ROUTES:
+                        </span>
+                        {ROUTE_PRESETS.map(r => (
+                          <button key={r.key} onClick={() => applyPreset(r.key)}
+                            style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:500,
+                              border:"1.5px solid #d1d5db", background:"#fff", color:"#374151",
+                              cursor:"pointer", fontFamily:"inherit" }}>
+                            {r.label}
+                          </button>
+                        ))}
+                      </>
+                    )}
                     {savedRoutes.length > 0 && (
                       <>
                         <span style={{ fontSize:11, fontWeight:700, color:tk.primary, margin:"0 2px 0 6px" }}>
@@ -1575,7 +1593,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
             <div style={{ padding:"16px 20px", borderBottom:"1.5px solid #e5e7eb",
               display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ fontSize:16, fontWeight:800, color:"#111827", flex:1 }}>
-                📚 Route &amp; Block Library
+                📚 {section} Route &amp; Block Library
               </div>
               <button onClick={() => setLibOpen(false)}
                 style={{ border:"none", background:"none", fontSize:20, color:"#9ca3af",
