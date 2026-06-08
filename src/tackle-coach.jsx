@@ -777,6 +777,46 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     }));
   }, [filteredOffPlays]);
 
+  // ── Play-code (play call) breakdowns per unit ─────────────────────────────────
+  const byOffCode = useMemo(() => {
+    const map = {};
+    filteredOffPlays.forEach(p => {
+      if (!p.playCode) return;
+      if (!map[p.playCode]) map[p.playCode] = { code:p.playCode, plays:0, yards:0, tds:0, firstDowns:0 };
+      const s = map[p.playCode];
+      s.plays++; s.yards += Number(p.yardsGained)||0;
+      if (p.outcome==="TD") s.tds++;
+      if (p.outcome==="First Down"||p.outcome==="TD") s.firstDowns++;
+    });
+    return Object.values(map).sort((a,b) => b.plays-a.plays);
+  }, [filteredOffPlays]);
+
+  const byDefCode = useMemo(() => {
+    const map = {};
+    filteredDefPlays.forEach(p => {
+      if (!p.playCode) return;
+      if (!map[p.playCode]) map[p.playCode] = { code:p.playCode, plays:0, yardsAllowed:0, tdsAllowed:0, sacks:0, tfls:0, ints:0 };
+      const s = map[p.playCode];
+      s.plays++; s.yardsAllowed += Number(p.yardsAllowed)||0;
+      if (p.outcome?.includes("TD Allowed")) s.tdsAllowed++;
+      if (p.outcome?.includes("Sack")) s.sacks++;
+      if (p.outcome?.includes("TFL")) s.tfls++;
+      if (p.outcome?.includes("INT")) s.ints++;
+    });
+    return Object.values(map).sort((a,b) => b.plays-a.plays);
+  }, [filteredDefPlays]);
+
+  const byStCode = useMemo(() => {
+    const map = {};
+    filteredStPlays.forEach(p => {
+      if (!p.playCode) return;
+      if (!map[p.playCode]) map[p.playCode] = { code:p.playCode, plays:0, yards:0 };
+      const s = map[p.playCode];
+      s.plays++; s.yards += Number(p.yardage)||0;
+    });
+    return Object.values(map).sort((a,b) => b.plays-a.plays);
+  }, [filteredStPlays]);
+
   // ── Rebuild theme for this render ────────────────────────────────────────────
   TK = buildTK(themeColor);
 
@@ -1660,6 +1700,35 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                   </TkCollapsible>
                 )}
 
+                {/* Play (play-code) breakdown */}
+                {byOffCode.length > 0 && (
+                  <TkCollapsible title="Play Breakdown" subtitle="By play call">
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead><tr style={{ background:TK.buttonBg }}>
+                          {["Play","Plays","Yds/Play","TDs","1st Downs"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", textAlign:i===0?"left":"center", position:i===0?"sticky":undefined, left:i===0?0:undefined, zIndex:i===0?3:undefined, background:i===0?TK.buttonBg:undefined, boxShadow:i===0?"2px 0 5px rgba(0,0,0,0.1)":undefined }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byOffCode.map((r,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={r.code} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, background:bg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)", whiteSpace:"nowrap" }}>{r.code}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:TK.primary }}>{r.plays>0?(r.yards/r.plays).toFixed(1):"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.tds>0?<TkBadge color="green">{r.tds}</TkBadge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.firstDowns}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TkCollapsible>
+                )}
+
                 {/* Down & Distance table */}
                 {filteredOffPlays.some(p=>p.down) && (
                   <TkCollapsible title="Down & Distance">
@@ -1760,6 +1829,37 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     </div>
                   </TkCollapsible>
                 )}
+
+                {/* Defensive call breakdown */}
+                {byDefCode.length > 0 && (
+                  <TkCollapsible title="Defensive Call Breakdown" subtitle="By play call">
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead><tr style={{ background:"#991b1b" }}>
+                          {["Call","Plays","Yds Allowed/Play","TDs Allowed","Sacks","TFL","INT"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", textAlign:i===0?"left":"center", position:i===0?"sticky":undefined, left:i===0?0:undefined, zIndex:i===0?3:undefined, background:i===0?"#991b1b":undefined, boxShadow:i===0?"2px 0 5px rgba(0,0,0,0.1)":undefined }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byDefCode.map((r,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={r.code} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, background:bg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)", whiteSpace:"nowrap" }}>{r.code}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:TK.red }}>{r.plays>0?(r.yardsAllowed/r.plays).toFixed(1):"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.tdsAllowed||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.sacks>0?<TkBadge color="red">{r.sacks}</TkBadge>:"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.tfls||"—"}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center" }}>{r.ints>0?<TkBadge color="green">{r.ints}</TkBadge>:"—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TkCollapsible>
+                )}
               </>)}
             </>)}
 
@@ -1788,6 +1888,34 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     </div>
                   ))}
                 </TkCollapsible>
+
+                {/* Play (play-code) breakdown */}
+                {byStCode.length > 0 && (
+                  <TkCollapsible title="Play Breakdown" subtitle="By play call">
+                    <div style={{ overflowX:"auto" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                        <thead><tr style={{ background:"#6d28d9" }}>
+                          {["Play","Plays","Total Yds","Yds/Play"].map((h,i) => (
+                            <th key={h} style={{ padding:"8px 10px", fontWeight:700, color:"#fff", fontSize:11, textTransform:"uppercase", textAlign:i===0?"left":"center", position:i===0?"sticky":undefined, left:i===0?0:undefined, zIndex:i===0?3:undefined, background:i===0?"#6d28d9":undefined, boxShadow:i===0?"2px 0 5px rgba(0,0,0,0.1)":undefined }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {byStCode.map((r,ri) => {
+                            const bg = ri%2===0?"#fff":"#fafafa";
+                            return (
+                              <tr key={r.code} style={{ borderBottom:"1px solid #f3f4f6", background:bg }}>
+                                <td style={{ padding:"9px 10px", fontWeight:700, color:"#111827", position:"sticky", left:0, background:bg, boxShadow:"2px 0 5px rgba(0,0,0,0.07)", whiteSpace:"nowrap" }}>{r.code}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.plays}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", color:"#6b7280" }}>{r.yards}</td>
+                                <td style={{ padding:"9px 10px", textAlign:"center", fontWeight:700, color:"#6d28d9" }}>{r.plays>0?(r.yards/r.plays).toFixed(1):"—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TkCollapsible>
+                )}
               </>)}
             </>)}
           </div>
