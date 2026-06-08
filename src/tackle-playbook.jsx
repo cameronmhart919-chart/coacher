@@ -350,6 +350,38 @@ function FieldSVG({
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── TacklePlaybook ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Mini preview of a saved library item (offsets relative to anchor) ──────────
+function LibraryPreview({ item, size = 56 }) {
+  const pad = 7;
+  const xs = item.points.map(p => p.dx), ys = item.points.map(p => p.dy);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = Math.max(maxX - minX, 1), h = Math.max(maxY - minY, 1);
+  const scale = Math.min((size - pad*2) / w, (size - pad*2) / h);
+  const tx = (dx, dy) => ({
+    x: pad + (dx - minX) * scale + (size - pad*2 - w*scale)/2,
+    y: pad + (dy - minY) * scale + (size - pad*2 - h*scale)/2,
+  });
+  const sp = item.points.map(tx);
+  const poly = sp.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const isBlock = item.kind === "block";
+  const color = isBlock ? "#7c3aed" : item.kind === "motion" ? "#1d4ed8" : "#111827";
+  const a = sp[sp.length-2], b = sp[sp.length-1];
+  return (
+    <svg width={size} height={size} style={{ background:"#f9fafb", borderRadius:6, flexShrink:0 }}>
+      <circle cx={sp[0].x} cy={sp[0].y} r={3} fill={color} />
+      <polyline points={poly} fill="none" stroke={color} strokeWidth={2}
+        strokeDasharray={item.kind==="motion" ? "3,2" : undefined}
+        strokeLinejoin="round" strokeLinecap="round" />
+      {isBlock && a && b && (() => {
+        const perp = Math.atan2(b.y-a.y, b.x-a.x) + Math.PI/2, L = 5;
+        return <line x1={b.x+L*Math.cos(perp)} y1={b.y+L*Math.sin(perp)}
+          x2={b.x-L*Math.cos(perp)} y2={b.y-L*Math.sin(perp)} stroke={color} strokeWidth={2} />;
+      })()}
+    </svg>
+  );
+}
+
 export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPlayCode }) {
   const db   = getDb();
   const base = `data/${instanceId}`;
@@ -357,6 +389,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   // ── Firestore data ──────────────────────────────────────────────────────────
   const [folders, setFolders] = useState([]);
   const [plays,   setPlays]   = useState([]);
+  const [library, setLibrary] = useState([]);   // saved reusable routes & blocks
 
   useEffect(() => {
     if (!instanceId) return;
@@ -364,7 +397,10 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
       snap => setFolders(snap.docs.map(d => ({ id:d.id, ...d.data() }))));
     const u2 = onSnapshot(collection(db, base, "tackle_pb_plays"),
       snap => setPlays(snap.docs.map(d => ({ id:d.id, ...d.data() }))));
-    return () => { u1(); u2(); };
+    const u3 = onSnapshot(collection(db, base, "tackle_pb_library"),
+      snap => setLibrary(snap.docs.map(d => ({ id:d.id, ...d.data() }))
+        .sort((a,b) => (a.name||"").localeCompare(b.name||""))));
+    return () => { u1(); u2(); u3(); };
   }, [instanceId]);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
@@ -384,6 +420,11 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const [selId,       setSelId]       = useState(null);
   const [pendingPos,  setPendingPos]  = useState(null);
   const [pendingSide, setPendingSide] = useState("offense");
+
+  // ── Route/Block library state ─────────────────────────────────────────────────
+  const [libNaming,   setLibNaming]   = useState(false);  // showing the "name this" input?
+  const [libNameInput,setLibNameInput]= useState("");
+  const [libOpen,     setLibOpen]     = useState(false);  // library manager modal open?
 
   // ── Drawing state ───────────────────────────────────────────────────────────
   const [draftPts,  setDraftPts]  = useState([]);
@@ -685,6 +726,58 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
     addEl({ type:"route", points:routePreset(key, player.x, player.y) });
   };
 
+  // ── Route/Block library ───────────────────────────────────────────────────────
+  // Save the selected route/motion/block as a reusable, named library item.
+  // Points are stored as offsets from the first point (the anchor), plus the
+  // side it was drawn on, so it can be re-anchored and auto-mirrored later.
+  const isLibKind = t => t==="route" || t==="motion" || t==="block";
+  const saveSelToLibrary = async () => {
+    const el = elements.find(e => e.id===selId);
+    const name = libNameInput.trim();
+    if (!el || !isLibKind(el.type) || !name) return;
+    const anchor  = el.points[0];
+    const refSide = anchor.x < F.x + F.w/2 ? "left" : "right";
+    const offs    = el.points.map(p => ({ dx:+(p.x-anchor.x).toFixed(1), dy:+(p.y-anchor.y).toFixed(1) }));
+    await addDoc(collection(db, base, "tackle_pb_library"), {
+      name, kind:el.type, refSide, points:offs, createdAt:new Date().toISOString(),
+    });
+    setLibNaming(false); setLibNameInput("");
+  };
+
+  // Apply a saved library item to the selected player, auto-mirroring by side.
+  const applyLibraryItem = item => {
+    const player = elements.find(e => e.id===selId && e.type==="player");
+    if (!player) return;
+    const curSide = player.x < F.x + F.w/2 ? "left" : "right";
+    const flip    = curSide !== item.refSide;
+    const pts = item.points.map(o => ({
+      x: clampX(player.x + (flip ? -o.dx : o.dx)),
+      y: clampY(player.y + o.dy),
+    }));
+    addEl({ type:item.kind, points:pts });
+  };
+
+  // Drop a saved library item onto the field as a standalone element (no player
+  // needed). Anchored at field centre, selected so it's ready to drag.
+  const placeLibraryItem = item => {
+    const ax = F.x + F.w/2, ay = F.y + F.h/2;
+    const pts = item.points.map(o => ({ x:clampX(ax+o.dx), y:clampY(ay+o.dy) }));
+    pushUndo(elements);
+    const newId = uid();
+    setElements(p => [...p, { type:item.kind, points:pts, id:newId }]);
+    setIsDirty(true);
+    setSelId(newId);
+    setTool("select");
+    setLibOpen(false);
+  };
+
+  const deleteLibraryItem = async id => {
+    await deleteDoc(doc(db, base, "tackle_pb_library", id));
+  };
+
+  // Close the "name this route" input whenever the selection changes
+  useEffect(() => { setLibNaming(false); setLibNameInput(""); }, [selId]);
+
   // ── Folder / play CRUD ──────────────────────────────────────────────────────
   const createFolder = async (parentId = null) => {
     if (!newFolderName.trim()) return;
@@ -799,6 +892,9 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const selectedEl     = elements.find(e => e.id===selId);
   const currentPlay    = plays.find(p => p.id===playId);
   const rootFolders    = folders.filter(f => f.section===section && !f.parentId);
+  const savedRoutes    = library.filter(i => i.kind==="route" || i.kind==="motion");
+  const savedBlocks    = library.filter(i => i.kind==="block");
+  const selIsLibKind   = selectedEl && isLibKind(selectedEl.type);
 
   // ── Add the current play to the team's play-code list (if not already there) ──
   const trimmedName     = playName.trim();
@@ -1098,6 +1194,13 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
               {!isDirty && currentPlay && (
                 <span style={{ fontSize:11, color:"#9ca3af" }}>Saved ✓</span>
               )}
+              <button onClick={() => setLibOpen(true)}
+                title="Manage your saved routes & blocks"
+                style={{ padding:"6px 14px", background:"#f3f4f6", color:"#374151",
+                  border:"1.5px solid #e5e7eb", borderRadius:6, fontWeight:700,
+                  fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+                📚 Library{library.length ? ` (${library.length})` : ""}
+              </button>
               <button onClick={exportPng}
                 style={{ padding:"6px 14px", background:"#f3f4f6", color:"#374151",
                   border:"1.5px solid #e5e7eb", borderRadius:6, fontWeight:700,
@@ -1193,6 +1296,41 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                     cursor:"pointer", fontFamily:"inherit" }}>
                   ⇄ Mirror
                 </button>
+                {/* Save a drawn route/block into the reusable library */}
+                {selIsLibKind && (
+                  libNaming ? (
+                    <>
+                      <input autoFocus value={libNameInput}
+                        onChange={e => setLibNameInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key==="Enter") saveSelToLibrary();
+                          if (e.key==="Escape") { setLibNaming(false); setLibNameInput(""); }
+                        }}
+                        placeholder={selectedEl.type==="block" ? "Block name…" : "Route name…"}
+                        style={{ padding:"3px 8px", border:`1.5px solid ${tk.primary}`, borderRadius:99,
+                          fontSize:11, fontFamily:"inherit", outline:"none", width:130 }} />
+                      <button onClick={saveSelToLibrary}
+                        style={{ padding:"3px 11px", borderRadius:99, fontSize:11, fontWeight:700,
+                          border:"none", background:tk.buttonBg, color:"#fff", cursor:"pointer", fontFamily:"inherit" }}>
+                        Save
+                      </button>
+                      <button onClick={() => { setLibNaming(false); setLibNameInput(""); }}
+                        style={{ padding:"3px 8px", borderRadius:99, fontSize:11, fontWeight:600,
+                          border:"1.5px solid #d1d5db", background:"#fff", color:"#6b7280", cursor:"pointer", fontFamily:"inherit" }}>
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => { setLibNaming(true); setLibNameInput(""); }}
+                      title="Save this to your route/block library"
+                      style={{ padding:"3px 11px", borderRadius:99, fontSize:11, fontWeight:600,
+                        border:`1.5px solid ${tk.primary}`, background:"#fff", color:tk.primary,
+                        cursor:"pointer", fontFamily:"inherit" }}>
+                      ★ Save to Library
+                    </button>
+                  )
+                )}
+
                 {selectedPlayer && (
                   <>
                     <div style={{ width:1, height:18, background:"#e5e7eb", margin:"0 3px" }} />
@@ -1207,6 +1345,38 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                         {r.label}
                       </button>
                     ))}
+                    {savedRoutes.length > 0 && (
+                      <>
+                        <span style={{ fontSize:11, fontWeight:700, color:tk.primary, margin:"0 2px 0 6px" }}>
+                          SAVED:
+                        </span>
+                        {savedRoutes.map(item => (
+                          <button key={item.id} onClick={() => applyLibraryItem(item)}
+                            title={`Apply saved route "${item.name}"`}
+                            style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:600,
+                              border:`1.5px solid ${tk.primary}`, background:tk.primaryLight, color:tk.primaryDark,
+                              cursor:"pointer", fontFamily:"inherit" }}>
+                            {item.name}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {savedBlocks.length > 0 && (
+                      <>
+                        <span style={{ fontSize:11, fontWeight:700, color:"#9ca3af", margin:"0 2px 0 6px" }}>
+                          BLOCKS:
+                        </span>
+                        {savedBlocks.map(item => (
+                          <button key={item.id} onClick={() => applyLibraryItem(item)}
+                            title={`Apply saved block "${item.name}"`}
+                            style={{ padding:"3px 9px", borderRadius:99, fontSize:11, fontWeight:600,
+                              border:"1.5px solid #7c3aed", background:"#f5f3ff", color:"#6d28d9",
+                              cursor:"pointer", fontFamily:"inherit" }}>
+                            {item.name}
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </>
                 )}
                 <div style={{ flex:1 }} />
@@ -1243,6 +1413,76 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
           </>
         )}
       </div>
+
+      {/* ════════════════════════════════════════════════════════
+          ROUTE & BLOCK LIBRARY — manager modal
+      ════════════════════════════════════════════════════════ */}
+      {libOpen && (
+        <div onClick={() => setLibOpen(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
+            display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:"#fff", borderRadius:14, width:560, maxWidth:"100%",
+              maxHeight:"82vh", overflow:"hidden", display:"flex", flexDirection:"column",
+              boxShadow:"0 16px 48px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding:"16px 20px", borderBottom:"1.5px solid #e5e7eb",
+              display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ fontSize:16, fontWeight:800, color:"#111827", flex:1 }}>
+                📚 Route &amp; Block Library
+              </div>
+              <button onClick={() => setLibOpen(false)}
+                style={{ border:"none", background:"none", fontSize:20, color:"#9ca3af",
+                  cursor:"pointer", lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ padding:"8px 20px 20px", overflowY:"auto" }}>
+              {library.length === 0 ? (
+                <div style={{ padding:"32px 8px", textAlign:"center", color:"#9ca3af", fontSize:13, lineHeight:1.6 }}>
+                  No saved routes or blocks yet.<br/>
+                  Draw a route or block, select it, and click <b>★ Save to Library</b>.
+                </div>
+              ) : [["Routes", savedRoutes], ["Blocks", savedBlocks]].map(([label, items]) => (
+                items.length > 0 && (
+                  <div key={label} style={{ marginTop:14 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", letterSpacing:0.5, marginBottom:8 }}>
+                      {label.toUpperCase()} ({items.length})
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:10 }}>
+                      {items.map(item => (
+                        <div key={item.id} style={{ border:"1.5px solid #e5e7eb", borderRadius:10,
+                          padding:8, display:"flex", alignItems:"center", gap:8 }}>
+                          <button onClick={() => placeLibraryItem(item)}
+                            title="Add to the field (drag to position)"
+                            style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:8,
+                              border:"none", background:"none", cursor:"pointer", padding:0, textAlign:"left",
+                              fontFamily:"inherit" }}>
+                            <LibraryPreview item={item} />
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:700, color:"#111827",
+                                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                                {item.name}
+                              </div>
+                              <div style={{ fontSize:10, color:tk.primary, fontWeight:600 }}>
+                                + Add to field
+                              </div>
+                            </div>
+                          </button>
+                          <button onClick={() => deleteLibraryItem(item.id)}
+                            title="Delete"
+                            style={{ border:"none", background:"none", color:"#9ca3af",
+                              cursor:"pointer", fontSize:16, lineHeight:1, padding:2 }}>🗑</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              ))}
+              <div style={{ marginTop:18, fontSize:11, color:"#9ca3af", lineHeight:1.5 }}>
+                Tip: click any item to drop it on the field as a standalone element you can drag. Or select a player first and apply it from the action bar — that version auto-mirrors to the player's side.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
