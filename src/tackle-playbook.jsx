@@ -1021,13 +1021,16 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
   const savedForms     = formationsLib.filter(f => f.unit===section);
   const playerCountOnField = elements.filter(e => e.type==="player").length;
 
+  // Play codes for the current unit (legacy untagged codes count as Offense)
+  const sectionPlayCodes = playCodes.filter(pc => (pc.unit||"Offense")===section);
+
   // ── Add the current play to the team's play-code list (if not already there) ──
   const trimmedName     = playName.trim();
-  const matchingCode    = playCodes.find(pc => (pc.code||"").toLowerCase() === trimmedName.toLowerCase());
+  const matchingCode    = sectionPlayCodes.find(pc => (pc.code||"").toLowerCase() === trimmedName.toLowerCase());
   const canAddPlayCode  = !!onAddPlayCode && !!trimmedName && !matchingCode;
   const addPlayAsCode = () => {
     if (!canAddPlayCode) return;
-    const newCode = { id: Date.now(), code: trimmedName, category: null };
+    const newCode = { id: Date.now(), code: trimmedName, unit: section, category: null };
     onAddPlayCode(newCode);   // parent persists it to the play-code list
     setPlayCodeId(newCode.id); // link this play to the freshly created code
     setIsDirty(true);
@@ -1280,7 +1283,7 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                 onChange={e => { setPlayCodeId(e.target.value); setIsDirty(true); }}
                 style={{ ...inp }}>
                 <option value="">— No Play Code —</option>
-                {playCodes.map(pc => (
+                {sectionPlayCodes.map(pc => (
                   <option key={pc.id} value={pc.id}>{pc.code}</option>
                 ))}
               </select>

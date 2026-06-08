@@ -110,6 +110,19 @@ const TK_PLAY_CATEGORIES = [
   { key:"RPO",    label:"RPO",    bg:"#fef3c7", color:"#92400e", border:"#fcd34d" },
 ];
 
+// Defensive play-call categories
+const TK_DEF_PLAY_CATEGORIES = [
+  { key:"Coverage", label:"Coverage", bg:"#ecfeff", color:"#0e7490", border:"#a5f3fc" },
+  { key:"Stunt",    label:"Stunt",    bg:"#f5f3ff", color:"#6d28d9", border:"#ddd6fe" },
+  { key:"Blitz",    label:"Blitz",    bg:"#fef2f2", color:"#b91c1c", border:"#fecaca" },
+];
+
+// Play-call categories for a given unit ("" → flat list, no categories)
+const catsForUnit = (unit) =>
+  unit === "Defense" ? TK_DEF_PLAY_CATEGORIES :
+  unit === "Special Teams" ? [] :
+  TK_PLAY_CATEGORIES;
+
 const TK_DIRECTIONS = ["Left","Middle","Right"];
 
 const TK_OFF_OUTCOMES = [
@@ -204,6 +217,64 @@ function TkCollapsible({ title, subtitle, defaultOpen = false, children }) {
         <span style={{ fontSize:18, color:"#9ca3af", transform:open?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.2s" }}>▾</span>
       </button>
       {open && <div style={{ padding:"0 24px 24px" }}>{children}</div>}
+    </div>
+  );
+}
+
+// ── Play-code manager (one unit's play calls, optionally grouped by category) ──
+function PlayCodeManager({ unit, playCodes, savePlayCodes, TK, isMobile, inp, placeholder }) {
+  const categories = catsForUnit(unit);
+  const [newCode, setNewCode] = useState("");
+  const [newCat,  setNewCat]  = useState(categories[0]?.key || "");
+  const mine = playCodes.filter(pc => (pc.unit || "Offense") === unit);
+  const add = () => {
+    const c = newCode.trim();
+    if (!c) return;
+    savePlayCodes([...playCodes, { id:Date.now(), code:c, unit, category: categories.length ? newCat : "" }]);
+    setNewCode("");
+  };
+  const remove = id => savePlayCodes(playCodes.filter(p => p.id !== id));
+  const chip = (pc, color, bg, border) => (
+    <div key={pc.id} style={{ background:bg, border:`1.5px solid ${border}`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+      <span style={{ fontSize:13, fontWeight:700, color }}>{pc.code}</span>
+      <button onClick={() => remove(pc.id)} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
+    </div>
+  );
+  const flat = mine.filter(pc => !categories.some(c => c.key === pc.category));
+  return (
+    <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
+      <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>{unit} Plays</div>
+      <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>
+        {categories.length ? "Assign each play call to a category so they group together in the logger." : "Add your play calls for this unit."}
+      </div>
+      <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+        <input style={{ ...inp, flex:2, minWidth:120 }} placeholder={placeholder} value={newCode}
+          onChange={e => setNewCode(e.target.value)} onKeyDown={e => { if (e.key==="Enter") add(); }} />
+        {categories.length > 0 && (
+          <select style={{ ...inp, flex:1, minWidth:90 }} value={newCat} onChange={e => setNewCat(e.target.value)}>
+            {categories.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+        )}
+        <button onClick={add}
+          style={{ padding:"9px 16px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13, whiteSpace:"nowrap" }}>Add</button>
+      </div>
+      {categories.map(cat => {
+        const group = mine.filter(pc => pc.category === cat.key);
+        if (!group.length) return null;
+        return (
+          <div key={cat.key} style={{ marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:800, color:cat.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{cat.label}</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>{group.map(pc => chip(pc, cat.color, cat.bg, cat.border))}</div>
+          </div>
+        );
+      })}
+      {flat.length > 0 && (
+        <div style={{ marginBottom:8 }}>
+          {categories.length > 0 && <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Uncategorized</div>}
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>{flat.map(pc => chip(pc, "#374151", "#f3f4f6", "#e5e7eb"))}</div>
+        </div>
+      )}
+      {mine.length === 0 && <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No plays yet. Add one above.</div>}
     </div>
   );
 }
@@ -368,8 +439,6 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   const [logoUrl,          setLogoUrl]          = useState(null);
   const [logoUploading,    setLogoUploading]    = useState(false);
   const [themeColor,       setThemeColor]       = useState("#be123c");
-  const [newPlayCode,      setNewPlayCode]      = useState(""); // fixes useState-in-render bug
-  const [newPlayCodeCat,   setNewPlayCodeCat]   = useState("Run");
   const [newBlockingScheme,    setNewBlockingScheme]    = useState("");
   const [newBlockingSchemeCat, setNewBlockingSchemeCat] = useState("Run");
   const [newPositionName,      setNewPositionName]      = useState("");
@@ -520,7 +589,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   // ── Defensive form ───────────────────────────────────────────────────────────
   const initDefForm = () => ({
     game: games[0] || "Game 1", quarter:"1", down:"1", distance:"10",
-    playType:"", outcome:"",
+    playType:"", playCode:"", outcome:"",
     primaryTackler:"", secondaryTackler:"", playerAction:"",
     yardsAllowed:"", notes:"",
   });
@@ -548,7 +617,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
     game: games[0] || "Game 1", quarter:"1",
     stType: "Punt", side:"offense",
     player:"", yardage:"", fieldGoalDist:"",
-    outcome:"", notes:"",
+    playCode:"", outcome:"", notes:"",
   });
   const [stForm, setStForm] = useState(initStForm);
   const stf = (k, v) => setStForm(p => ({ ...p, [k]:v }));
@@ -928,7 +997,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                       <select style={mInp} value={form.playCode} onChange={e => f("playCode", e.target.value)}>
                         <option value="">— None —</option>
                         {TK_PLAY_CATEGORIES.map(cat => {
-                          const group = playCodes.filter(pc => pc.category === cat.key);
+                          const group = playCodes.filter(pc => (pc.unit||"Offense")==="Offense" && pc.category === cat.key);
                           if (!group.length) return null;
                           return (
                             <optgroup key={cat.key} label={cat.label}>
@@ -936,7 +1005,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                             </optgroup>
                           );
                         })}
-                        {(() => { const uncategorized = playCodes.filter(pc => !pc.category); return uncategorized.length ? <optgroup label="Other">{uncategorized.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}</optgroup> : null; })()}
+                        {(() => { const uncategorized = playCodes.filter(pc => (pc.unit||"Offense")==="Offense" && !TK_PLAY_CATEGORIES.some(c=>c.key===pc.category)); return uncategorized.length ? <optgroup label="Other">{uncategorized.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}</optgroup> : null; })()}
                       </select>
                     </div>
                   </div>
@@ -1115,6 +1184,21 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                         <option>Pass</option><option>Run</option>
                       </select>
                     </div>
+                    <div><label style={lbl}>Defensive Call</label>
+                      <select style={mInp} value={defForm.playCode} onChange={e => df("playCode", e.target.value)}>
+                        <option value="">— None —</option>
+                        {TK_DEF_PLAY_CATEGORIES.map(cat => {
+                          const group = playCodes.filter(pc => pc.unit==="Defense" && pc.category === cat.key);
+                          if (!group.length) return null;
+                          return (
+                            <optgroup key={cat.key} label={cat.label}>
+                              {group.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
+                            </optgroup>
+                          );
+                        })}
+                        {(() => { const u = playCodes.filter(pc => pc.unit==="Defense" && !TK_DEF_PLAY_CATEGORIES.some(c=>c.key===pc.category)); return u.length ? <optgroup label="Other">{u.map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}</optgroup> : null; })()}
+                      </select>
+                    </div>
                   </div>
 
                   <div style={sectionHdr}>Result</div>
@@ -1243,6 +1327,12 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     </div>
                     <div><label style={lbl}>Yardage</label>
                       <input style={mInp} type="number" placeholder="0" value={stForm.yardage} onChange={e => stf("yardage", e.target.value)} />
+                    </div>
+                    <div><label style={lbl}>Play</label>
+                      <select style={mInp} value={stForm.playCode} onChange={e => stf("playCode", e.target.value)}>
+                        <option value="">— None —</option>
+                        {playCodes.filter(pc => pc.unit==="Special Teams").map(pc => <option key={pc.id} value={pc.code}>{pc.code}</option>)}
+                      </select>
                     </div>
                   </div>
                   {(stForm.stType === "Field Goal Attempt" || stForm.stType === "PAT (1pt)") && (
@@ -2437,57 +2527,8 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     onDelete={i => saveOffOutcomes(offOutcomes.filter((_,j)=>j!==i))}
                     placeholder="e.g. First Down, Fumble" />
                 </div>
-                <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Plays</div>
-                  <div style={{ fontSize:12, color:"#9ca3af", marginBottom:16 }}>Assign each play call to a category so they group together in the logger.</div>
-
-                  {/* Add form */}
-                  <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
-                    <input style={{ ...inp, flex:2, minWidth:120 }} placeholder="e.g. 24 Power, Z-Post, Jet Sweep" value={newPlayCode} onChange={e => setNewPlayCode(e.target.value)}
-                      onKeyDown={e => { if(e.key==="Enter"&&newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim(),category:newPlayCodeCat}]);setNewPlayCode("");}}} />
-                    <select style={{ ...inp, flex:1, minWidth:90 }} value={newPlayCodeCat} onChange={e => setNewPlayCodeCat(e.target.value)}>
-                      {TK_PLAY_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                    </select>
-                    <button onClick={() => { if(newPlayCode.trim()){savePlayCodes([...playCodes,{id:Date.now(),code:newPlayCode.trim(),category:newPlayCodeCat}]);setNewPlayCode("");}}}
-                      style={{ padding:"9px 16px", background:TK.buttonBg, color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13, whiteSpace:"nowrap" }}>Add</button>
-                  </div>
-
-                  {/* Codes grouped by category */}
-                  {TK_PLAY_CATEGORIES.map(cat => {
-                    const group = playCodes.filter(pc => pc.category === cat.key);
-                    if (!group.length) return null;
-                    return (
-                      <div key={cat.key} style={{ marginBottom:16 }}>
-                        <div style={{ fontSize:11, fontWeight:800, color:cat.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>{cat.label}</div>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                          {group.map(pc => (
-                            <div key={pc.id} style={{ background:cat.bg, border:`1.5px solid ${cat.border}`, borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                              <span style={{ fontSize:13, fontWeight:700, color:cat.color }}>{pc.code}</span>
-                              <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {/* Legacy / uncategorized codes */}
-                  {playCodes.filter(pc => !pc.category).length > 0 && (
-                    <div style={{ marginBottom:8 }}>
-                      <div style={{ fontSize:11, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Uncategorized</div>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
-                        {playCodes.filter(pc => !pc.category).map(pc => (
-                          <div key={pc.id} style={{ background:"#f3f4f6", border:"1.5px solid #e5e7eb", borderRadius:8, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
-                            <span style={{ fontSize:13, fontWeight:700, color:"#374151" }}>{pc.code}</span>
-                            <button onClick={() => savePlayCodes(playCodes.filter(p=>p.id!==pc.id))} style={{ border:"none", background:"none", color:"#9ca3af", cursor:"pointer", fontSize:14, padding:0, lineHeight:1 }}>×</button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {playCodes.length === 0 && (
-                    <div style={{ fontSize:13, color:"#d1d5db", textAlign:"center", padding:"20px 0" }}>No plays yet. Add one above.</div>
-                  )}
-                </div>
+                <PlayCodeManager unit="Offense" playCodes={playCodes} savePlayCodes={savePlayCodes}
+                  TK={TK} isMobile={isMobile} inp={inp} placeholder="e.g. 24 Power, Z-Post, Jet Sweep" />
               </>
             )}
 
@@ -2510,11 +2551,16 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                     onDelete={i => saveDefActions(defActions.filter((_,j)=>j!==i))}
                     placeholder="e.g. Blitz, Zone Drop" />
                 </div>
+                <PlayCodeManager unit="Defense" playCodes={playCodes} savePlayCodes={savePlayCodes}
+                  TK={TK} isMobile={isMobile} inp={inp} placeholder="e.g. Cover 3, Double A Gap, Nickel Fire" />
               </>
             )}
 
             {/* Special Teams settings */}
             {settingsTab === "special teams" && (
+              <>
+              <PlayCodeManager unit="Special Teams" playCodes={playCodes} savePlayCodes={savePlayCodes}
+                TK={TK} isMobile={isMobile} inp={inp} placeholder="e.g. Punt Safe, Kick Return Left" />
               <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:24 }}>
                 <div style={{ fontSize:16, fontWeight:800, color:"#111827", marginBottom:4 }}>Special Teams Outcomes</div>
                 <div style={{ fontSize:12, color:"#6b7280", marginBottom:20 }}>Outcomes are organised by play type. Edit as needed.</div>
@@ -2530,6 +2576,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
                   </div>
                 ))}
               </div>
+              </>
             )}
           </div>
         )}
