@@ -2057,6 +2057,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
             instanceId={instanceId}
             tk={TK}
             playCodes={playCodes}
+            onAddPlayCode={(code) => savePlayCodes([...playCodes, code])}
           />
         )}
 

@@ -350,7 +350,7 @@ function FieldSVG({
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── TacklePlaybook ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
+export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPlayCode }) {
   const db   = getDb();
   const base = `data/${instanceId}`;
 
@@ -800,6 +800,18 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
   const currentPlay    = plays.find(p => p.id===playId);
   const rootFolders    = folders.filter(f => f.section===section && !f.parentId);
 
+  // ── Add the current play to the team's play-code list (if not already there) ──
+  const trimmedName     = playName.trim();
+  const matchingCode    = playCodes.find(pc => (pc.code||"").toLowerCase() === trimmedName.toLowerCase());
+  const canAddPlayCode  = !!onAddPlayCode && !!trimmedName && !matchingCode;
+  const addPlayAsCode = () => {
+    if (!canAddPlayCode) return;
+    const newCode = { id: Date.now(), code: trimmedName, category: null };
+    onAddPlayCode(newCode);   // parent persists it to the play-code list
+    setPlayCodeId(newCode.id); // link this play to the freshly created code
+    setIsDirty(true);
+  };
+
   // ── Recursive folder renderer ─────────────────────────────────────────────
   const renderFolder = (folder, depth=0) => {
     const isOpen   = !!openFolders[folder.id];
@@ -1051,6 +1063,16 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [] }) {
                   <option key={pc.id} value={pc.id}>{pc.code}</option>
                 ))}
               </select>
+
+              {canAddPlayCode && (
+                <button onClick={addPlayAsCode}
+                  title={`Add "${trimmedName}" to your team's play codes`}
+                  style={{ padding:"6px 11px", background:"#fff", color:tk.primary,
+                    border:`1.5px solid ${tk.primary}`, borderRadius:6, fontWeight:700,
+                    fontSize:12, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  + Add to Play Codes
+                </button>
+              )}
 
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:12, color:"#6b7280" }}>Players:</span>
