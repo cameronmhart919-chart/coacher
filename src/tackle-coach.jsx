@@ -847,7 +847,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   // ─────────────────────────────────────────────────────────────────────────────
   // ── RENDER ───────────────────────────────────────────────────────────────────
   // ─────────────────────────────────────────────────────────────────────────────
-  const TABS = ["Log a Play +","Play History","Analytics","Game Summary","Report Cards","Playbook","Settings"];
+  const TABS = ["Log a Play +","Play History","Analytics","Report Cards","Playbook","Settings"];
 
   return (
     <div style={{ minHeight:"100vh", background:"#f4f6fa", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
@@ -927,15 +927,24 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
           <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:100, background:"#fff", borderTop:"1.5px solid #e5e7eb", display:"flex", boxShadow:"0 -2px 12px rgba(0,0,0,0.08)" }}>
             {[
               { icon:"📋", label:"Log",     tab:"Log a Play +" },
-              { icon:"📊", label:"Stats",   tab:"Analytics" },
-              { icon:"🏈", label:"Games",   tab:"Game Summary" },
+              { icon:"📊", label:"Stats",   tab:"Analytics", sub:"Offense" },
+              { icon:"🏈", label:"Games",   tab:"Analytics", sub:"Game Summary" },
               { icon:"📝", label:"Cards",   tab:"Report Cards" },
               { icon:"⋯",  label:"More",    tab:null },
             ].map(item => {
-              const isActive = item.tab ? tab === item.tab : tab === "Settings";
+              const isActive = !item.tab ? tab === "Settings"
+                : item.sub
+                  ? (tab === "Analytics" && (item.sub === "Game Summary"
+                      ? analyticsSubTab === "Game Summary"
+                      : analyticsSubTab !== "Game Summary"))
+                  : tab === item.tab;
               return (
                 <button key={item.label}
-                  onClick={() => item.tab ? setTab(item.tab) : setMobileMoreOpen(o => !o)}
+                  onClick={() => {
+                    if (!item.tab) { setMobileMoreOpen(o => !o); return; }
+                    setTab(item.tab);
+                    if (item.sub) setAnalyticsSubTab(item.sub);
+                  }}
                   style={{ flex:1, padding:"8px 4px 10px", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
                   <span style={{ fontSize:20 }}>{item.icon}</span>
                   <span style={{ fontSize:10, fontWeight: isActive ? 800 : 500, color: isActive ? TK.primaryDark : "#6b7280" }}>{item.label}</span>
@@ -1574,20 +1583,22 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
           <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
             {/* Sub-tabs + game filter */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-              <div style={{ display:"flex", gap:6 }}>
-                {["Offense","Defense","Special Teams"].map(st => (
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {["Offense","Defense","Special Teams","Game Summary"].map(st => (
                   <button key={st} onClick={() => setAnalyticsSubTab(st)} style={{
                     padding:"8px 16px", borderRadius:8, border:"none", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit",
                     background: analyticsSubTab===st ? (st==="Defense"?TK.red:st==="Special Teams"?"#7c3aed":TK.buttonBg) : "#e5e7eb",
                     color: analyticsSubTab===st?"#fff":"#374151",
-                  }}>{isMobile&&st==="Special Teams"?"ST":st}</button>
+                  }}>{isMobile?(st==="Special Teams"?"ST":st==="Game Summary"?"Games":st):st}</button>
                 ))}
               </div>
-              <select value={filterGame} onChange={e => setFilterGame(e.target.value)}
-                style={{ padding:"8px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:13, fontFamily:"inherit" }}>
-                <option value="All">All Games</option>
-                {games.map(g => <option key={g}>{g}</option>)}
-              </select>
+              {analyticsSubTab !== "Game Summary" && (
+                <select value={filterGame} onChange={e => setFilterGame(e.target.value)}
+                  style={{ padding:"8px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:13, fontFamily:"inherit" }}>
+                  <option value="All">All Games</option>
+                  {games.map(g => <option key={g}>{g}</option>)}
+                </select>
+              )}
             </div>
 
             {/* ── OFFENSE ANALYTICS ──────────────────────────────────────── */}
@@ -1922,11 +1933,10 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* GAME SUMMARY TAB                                                    */}
+        {/* GAME SUMMARY — sub-tab under Analytics                              */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {tab === "Game Summary" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
-            <div style={{ fontSize:20, fontWeight:900, color:"#111827" }}>Game Summary</div>
+        {tab === "Analytics" && analyticsSubTab === "Game Summary" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:20, marginTop:20 }}>
             {games.length === 0 ? (
               <div style={{ background:"#fff", borderRadius:16, border:"1.5px solid #e5e7eb", padding:60, textAlign:"center", color:"#9ca3af" }}>No games configured. Add games in Settings → General.</div>
             ) : games.map(game => {
