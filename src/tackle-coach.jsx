@@ -421,6 +421,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   // ── Responsive ──────────────────────────────────────────────────────────────
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false); // desktop slideout nav
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", h);
@@ -856,6 +857,12 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
       <div style={{ background:TK.headerBg, boxShadow:"0 4px 24px rgba(0,0,0,0.25)" }}>
         <div style={{ maxWidth: isMobile ? undefined : 980, margin:"0 auto", padding: isMobile ? "14px 16px 0" : "20px 24px 0" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom: isMobile ? 12 : 18 }}>
+            {!isMobile && (
+              <button onClick={() => setNavOpen(true)} title="Menu"
+                style={{ width:38, height:38, borderRadius:10, background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", fontSize:18, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>
+                ☰
+              </button>
+            )}
             <div style={{ width:38, height:38, borderRadius:10, background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, overflow:"hidden" }}>
               {logoUrl
                 ? <img src={logoUrl} alt="logo" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
@@ -876,22 +883,61 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
               </button>
             )}
           </div>
-          {/* Desktop tab row */}
+          {/* Current-tab label (desktop) — full nav lives in the slideout */}
           {!isMobile && (
-            <div style={{ display:"flex", gap:2 }}>
-              {TABS.map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{
-                  padding:"10px 20px", background:"none", border:"none",
-                  borderBottom: tab===t ? "3px solid #fff" : "3px solid transparent",
-                  color: tab===t ? "#fff" : "rgba(255,255,255,0.5)",
-                  fontWeight: tab===t ? 800 : 500, fontSize:13,
-                  cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", transition:"all 0.15s",
-                }}>{t}</button>
-              ))}
+            <div style={{ display:"flex", alignItems:"center", gap:8, paddingBottom:12 }}>
+              <span style={{ fontSize:15, fontWeight:800, color:"#fff" }}>{tab === "Log a Play +" ? "Log a Play" : tab}</span>
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Desktop slideout nav ───────────────────────────────────────────── */}
+      {!isMobile && navOpen && (
+        <div onClick={() => setNavOpen(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:300 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ position:"absolute", top:0, left:0, bottom:0, width:264, background:"#fff",
+              boxShadow:"4px 0 24px rgba(0,0,0,0.2)", display:"flex", flexDirection:"column", fontFamily:"inherit" }}>
+            <div style={{ padding:"18px 20px", background:TK.headerBg, display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:34, height:34, borderRadius:9, background:"rgba(255,255,255,0.12)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:19, overflow:"hidden" }}>
+                {logoUrl ? <img src={logoUrl} alt="logo" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : "🏈"}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Coacher</div>
+                <div style={{ fontSize:11, color:"rgba(255,255,255,0.6)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{userProfile?.name || authUser?.email}</div>
+              </div>
+              <button onClick={() => setNavOpen(false)}
+                style={{ border:"none", background:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:"10px 0" }}>
+              {TABS.map(t => {
+                const active = tab === t;
+                return (
+                  <button key={t} onClick={() => { setTab(t); setNavOpen(false); }}
+                    style={{ width:"100%", padding:"13px 22px", textAlign:"left", border:"none",
+                      background: active ? TK.primaryLight : "none",
+                      borderLeft: `3px solid ${active ? TK.primary : "transparent"}`,
+                      color: active ? TK.primaryDark : "#374151",
+                      fontWeight: active ? 800 : 600, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                    {t === "Log a Play +" ? "Log a Play" : t}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ borderTop:"1.5px solid #e5e7eb", padding:"10px 0" }}>
+              <button onClick={() => { onSwitchPortal(); setNavOpen(false); }}
+                style={{ width:"100%", padding:"13px 22px", textAlign:"left", border:"none", background:"none", color:"#374151", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                ⇄ Switch Portal
+              </button>
+              <button onClick={() => signOut(auth)}
+                style={{ width:"100%", padding:"13px 22px", textAlign:"left", border:"none", background:"none", color:"#dc2626", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                🚪 Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile bottom nav ──────────────────────────────────────────────── */}
       {isMobile && (
