@@ -1119,7 +1119,10 @@ export default function TacklePlaybook({ instanceId, tk, playCodes = [], onAddPl
                 <span style={{ fontSize:12, flex:1, fontWeight:playId===p.id?700:400,
                   color:playId===p.id ? tk.primaryDark : "#374151",
                   whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                  ▶ {p.name}
+                  <span style={{ display:"inline-block", width:5, height:5, borderRadius:"50%",
+                    background: playId===p.id ? tk.primary : "#cbd5e1", marginRight:7,
+                    verticalAlign:"middle", flexShrink:0 }} />
+                  {p.name}
                 </span>
                 <button title="Duplicate play"
                   onClick={e => { e.stopPropagation(); duplicatePlay(p); }}
