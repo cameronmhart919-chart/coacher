@@ -847,7 +847,7 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
   // ─────────────────────────────────────────────────────────────────────────────
   // ── RENDER ───────────────────────────────────────────────────────────────────
   // ─────────────────────────────────────────────────────────────────────────────
-  const TABS = ["Log a Play +","Play History","Analytics","Report Cards","Playbook","Settings"];
+  const TABS = ["Log a Play +","Play History","Analytics","Playbook","Settings"];
 
   return (
     <div style={{ minHeight:"100vh", background:"#f4f6fa", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
@@ -929,14 +929,16 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
               { icon:"📋", label:"Log",     tab:"Log a Play +" },
               { icon:"📊", label:"Stats",   tab:"Analytics", sub:"Offense" },
               { icon:"🏈", label:"Games",   tab:"Analytics", sub:"Game Summary" },
-              { icon:"📝", label:"Cards",   tab:"Report Cards" },
+              { icon:"📝", label:"Cards",   tab:"Analytics", sub:"Report Cards" },
               { icon:"⋯",  label:"More",    tab:null },
             ].map(item => {
+              const analyticsCore = ["Offense","Defense","Special Teams"];
               const isActive = !item.tab ? tab === "Settings"
                 : item.sub
-                  ? (tab === "Analytics" && (item.sub === "Game Summary"
-                      ? analyticsSubTab === "Game Summary"
-                      : analyticsSubTab !== "Game Summary"))
+                  ? (tab === "Analytics" && (
+                      item.sub === "Game Summary" ? analyticsSubTab === "Game Summary"
+                      : item.sub === "Report Cards" ? analyticsSubTab === "Report Cards"
+                      : analyticsCore.includes(analyticsSubTab)))
                   : tab === item.tab;
               return (
                 <button key={item.label}
@@ -1584,15 +1586,15 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
             {/* Sub-tabs + game filter */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
               <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                {["Offense","Defense","Special Teams","Game Summary"].map(st => (
+                {["Offense","Defense","Special Teams","Game Summary","Report Cards"].map(st => (
                   <button key={st} onClick={() => setAnalyticsSubTab(st)} style={{
                     padding:"8px 16px", borderRadius:8, border:"none", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit",
                     background: analyticsSubTab===st ? (st==="Defense"?TK.red:st==="Special Teams"?"#7c3aed":TK.buttonBg) : "#e5e7eb",
                     color: analyticsSubTab===st?"#fff":"#374151",
-                  }}>{isMobile?(st==="Special Teams"?"ST":st==="Game Summary"?"Games":st):st}</button>
+                  }}>{isMobile?(st==="Special Teams"?"ST":st==="Game Summary"?"Games":st==="Report Cards"?"Cards":st):st}</button>
                 ))}
               </div>
-              {analyticsSubTab !== "Game Summary" && (
+              {analyticsSubTab !== "Game Summary" && analyticsSubTab !== "Report Cards" && (
                 <select value={filterGame} onChange={e => setFilterGame(e.target.value)}
                   style={{ padding:"8px 12px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:13, fontFamily:"inherit" }}>
                   <option value="All">All Games</option>
@@ -2083,10 +2085,10 @@ export default function TackleCoach({ instanceId, authUser, userProfile, onSwitc
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* REPORT CARDS TAB                                                   */}
+        {/* REPORT CARDS — sub-tab under Analytics                             */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {tab === "Report Cards" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+        {tab === "Analytics" && analyticsSubTab === "Report Cards" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:20, marginTop:20 }}>
             {selectedPlayer ? (() => {
               const pl = players.find(p => String(p.id) === String(selectedPlayer));
               if (!pl) { setSelectedPlayer(null); return null; }
